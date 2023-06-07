@@ -14,12 +14,7 @@ def get_dataset(args, split, sparse=True, **kwargs):
     else:
         transform=None
 
-    ## fix random seed for data split
     seeds_init = [12232231, 12232432, 2234234, 4665565, 45543345, 454543543, 45345234, 54552234, 234235425, 909099343]
-    # seeds_init = [45345234]
-    # seeds_init = [45345234, 909099343, 12232432, 12232231, 2234234, 4665565, 45543345, 454543543, 54552234, 234235425]
-    # seeds_init = [4665565]
-    # seeds_init = [54552234]
     seeds = []
     for i in range(1, 20):
         seeds = seeds + [a*i for a in seeds_init]
@@ -29,17 +24,14 @@ def get_dataset(args, split, sparse=True, **kwargs):
         dataset = get_ogbn_dataset(args.dataset, args.normalize_features, transform=transform)
         data = dataset[0]
         split_idx = dataset.get_idx_split()
-        # import ipdb; ipdb.set_trace()
-        # print(split_idx)
-        data.y = data.y.squeeze(1) ## add this for make y [num, 1] to [num]
+        data.y = data.y.squeeze(1)
         if args.const_split:
             train_idx = split_idx['train']
         else:
             train_idx = random_ogb_splits(data, split_idx['train'], num_classes=dataset.num_classes, seed=seed, num=args.fix_num)
-        # data.train_mask = index_to_mask(split_idx['train'], data.x.shape[0])
         data.train_mask = index_to_mask(train_idx, data.x.shape[0])
-        data.test_mask = index_to_mask(split_idx['test'], data.x.shape[0]) ## add this for convenience
-        data.val_mask = index_to_mask(split_idx['valid'], data.x.shape[0]) ## add this for convenience
+        data.test_mask = index_to_mask(split_idx['test'], data.x.shape[0])
+        data.val_mask = index_to_mask(split_idx['valid'], data.x.shape[0])
         return dataset, data, split_idx
 
     if args.dataset == "Cora" or args.dataset == "CiteSeer" or args.dataset == "PubMed":
@@ -169,10 +161,6 @@ def proportion_planetoid_splits(data, num_classes, seed, proportion):
     return data
 
 def random_coauthor_amazon_splits(data, num_classes, seed):
-    # Set random coauthor/co-purchase splits:
-    # * 20 * num_classes labels for training
-    # * 30 * num_classes labels for validation
-    # rest labels for testing
     g = None
     if seed is not None:
         g = torch.Generator()
