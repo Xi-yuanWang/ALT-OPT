@@ -55,7 +55,6 @@ class MLP(torch.nn.Module):
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, dropout, num_layers, **kwargs):
         super(GCN, self).__init__()
-        # num_layers = args.num_layers
         self.convs = torch.nn.ModuleList()
         self.convs.append(GCNConv(in_channels, hidden_channels))
         self.bns = torch.nn.ModuleList()
@@ -80,7 +79,6 @@ class GCN(torch.nn.Module):
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
-        # return x
         return F.log_softmax(x, dim=1)
 
 

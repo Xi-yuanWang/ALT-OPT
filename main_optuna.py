@@ -154,19 +154,12 @@ def objective(trial):
                 result = test(model, data, split_idx, args=args)
                 print('test_result', result)
                 args.current_epoch = 1
-                # model.propagate_update(data, K=args.K)
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
                 if args.model == 'ALTOPT':
                     model.propagate_update(data, K=args.K)
-                    # result = test_altopt(model, data, split_idx, args=args)
                     for ii in range(args.loop):
                         loss = train_altopt(model, data, train_idx, optimizer, args=args)
-                        # loss = train_altopt_PTA(model, data, train_idx, optimizer, args=args)
-                    # print(loss)
-                    # model.propagate_update(data, K=args.K)
-                    # result1 = test(model, data, split_idx, args=args)
-                    # print(result1)
                     result = test_altopt(model, data, split_idx, args=args)
                 elif args.model == 'CS':
                     loss = train_cs(model, data, train_idx, optimizer, args=args)
@@ -187,7 +180,6 @@ def objective(trial):
                     
                 if args.log_steps > 0:
                     if epoch % args.log_steps == 0:
-                        # print(model.FF.min(dim=1))
                         train_acc, valid_acc, test_acc = result
                         print(f'Split: {split + 1:02d}, '
                               f'Run: {run + 1:02d}, '
@@ -257,18 +249,15 @@ def set_up_trial(trial, args):
         pass
     elif args.model == 'LP':
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
-    # elif args.model == 'APPNP' or args.prop == 'APPNP':
     elif args.model in ['APPNP', 'IAPPNP', 'MLP']:
         args.alpha     = trial.suggest_uniform('alpha', 0, 1.00001)
         args.pro_alpha = trial.suggest_uniform('pro_alpha', 0, 1.00001)
         args.K = trial.suggest_uniform('K', 0, 1000)
-
         ## set lambda in APPNP in order to test pattern
         # args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
         # args.lambda2 = trial.suggest_uniform('lambda2', 0, 1000)
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN']:
-        # if args.prop == 'EMP':
         if True:
             args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
             args.lambda2 = trial.suggest_uniform('lambda2', 0, 1000)
@@ -293,9 +282,6 @@ def set_up_trial(trial, args):
         args.correct_alpha = trial.suggest_uniform('correct_alpha', 0, 1.0001)
         args.smooth_alpha = trial.suggest_uniform('smooth_alpha', 0, 1.0001)
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
-
-
-
     print('K: ', args.K)
     print('alpha: ', args.alpha)
     print('lr: ', args.lr)

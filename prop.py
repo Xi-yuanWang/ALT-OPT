@@ -67,7 +67,6 @@ class Propagation(MessagePassing):
                 FF=None,
                 mode=None,
                 post_step=None, alpha=None) -> Tensor:
-        """"""
         if self.K <= 0: return x
 
         assert isinstance(edge_index, SparseTensor), "Only support SparseTensor now"
@@ -76,11 +75,7 @@ class Propagation(MessagePassing):
         if self.normalize:
             cache = self._cached_adj_t
             if cache is None:
-                # edge_index = gcn_norm(  # yapf: disable
-                        # edge_index, edge_weight, x.size(self.node_dim), False,
-                        # add_self_loops=self.add_self_loops, dtype=x.dtype)
                 edge_index = gcn_norm(edge_index, add_self_loops=self.add_self_loops)
-                # print(edge_index)
                 if self.cached:
                     self._cached_adj_t = edge_index
             else:
@@ -88,9 +83,6 @@ class Propagation(MessagePassing):
 
         hh = x
         mode = self.mode if mode is None else mode
-        ## to remove
-        # if self.args.LP:
-            # x = set_signal_by_label(x, data)
         if alpha is None:
             alpha = self.alpha
 
@@ -111,21 +103,15 @@ class Propagation(MessagePassing):
 
     def init_label(self, data, nodes=None, classes=None):
         mask = data.train_mask
-        # label = torch.zeros_like(FF).cuda()
         nodes = data.x.shape[0]
         classes = data.y.max() + 1
         label = torch.zeros(nodes, classes).cuda()
-        # print(label.shape)
-        # print(mask, mask.shape)
-        # print(data.y[mask], data.y[mask].shape)
         label[mask, data.y[mask]] = 1
         return label
 
     def apt_forward(self, mlp, FF, edge_index, K, alpha, data):
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
-        # print(lambda1)
-        # import ipdb; ipdb.set_trace()
         if not torch.is_tensor(self.label):
             self.label = self.init_label(data)
             print('init label')
@@ -139,29 +125,17 @@ class Propagation(MessagePassing):
         # mlp[indices] = 1
 
         if self.args.loss == 'CE':
-            # mlp = torch.log_softmax(mlp, dim=-1)
             if self.args.current_epoch != 1:
                 mlp = torch.log(mlp)
-                # mlp = torch.log_softmax(mlp, dim=-1)
-        # print(mlp)
-        # print(mlp.max(dim=1)[:20])
-        # import ipdb; ipdb.set_trace()
         for k in range(K):
             AF = self.propagate(edge_index, x=FF, edge_weight=None, size=None)
             if self.args.loss == 'CE':
                 FF[mask] = lambda1/(2*(1+lambda2)) * mlp[mask] + 1/(1+lambda2) * AF[mask] + lambda2/(1+lambda2)*label[mask]
-                # FF[mask] = label[mask]
                 FF[~mask] = lambda1/2 * mlp[~mask] + AF[~mask]
             else:
                 FF[mask] = 1/(lambda1+lambda2+1) * AF[mask] + lambda1/(lambda1+lambda2+1) * mlp[mask] + lambda2/(lambda1+lambda2+1) * label[mask]  ## for labeled nodes
-                # FF[mask] = label[mask]
                 FF[~mask] = 1/(lambda1+1) * AF[~mask] + lambda1/(lambda1+1) * mlp[~mask] ## for unlabeled nodes
-            # FF = FF.clamp(0, 1)
-        # FF = FF / FF.sum(dim=1, keepdim=True)
-        # print(FF)
         FF = F.softmax(FF/0.2, dim=1)
-        # FF = F.softmax(FF, dim=1)
-        # FF = F.softmax(FF/0.1, dim=1)
         return FF
 
     def appnp_forward(self, x, hh, edge_index, K, alpha):
