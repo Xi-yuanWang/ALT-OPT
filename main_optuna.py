@@ -7,7 +7,7 @@ from dataset import get_dataset
 from util import Logger, str2bool, spectral
 from get_model import get_model
 from train_eval import train, test
-from train_eval import train_altopt, test_altopt, train_cs, test_cs, test1, train_altopt_PTA, train_appnp, test_appnp
+from train_eval import train_altopt, test_altopt, train_cs, test_cs, test1, train_appnp, test_appnp
 from model import CorrectAndSmooth
 
 import optuna
@@ -46,6 +46,9 @@ def parse_args():
     parser.add_argument('--softmaxF', type=str2bool, default=True)
     parser.add_argument("--onlyy", type=str2bool, default=False)
     parser.add_argument("--usecg", type=str2bool, default=True)
+    parser.add_argument("--weightedloss", type=str2bool, default=True)
+
+    parser.add_argument("--temperature", type=float, default=0.2)
     
     parser.add_argument('--loss', type=str, default=None, choices=["CE", "MSE"])
     parser.add_argument('--LP', type=str2bool, default=False, help='Label propagation') #only in EMP

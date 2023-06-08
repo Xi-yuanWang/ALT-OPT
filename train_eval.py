@@ -6,31 +6,10 @@ import torch.nn as nn
 from torch_geometric.data import Data as PygData
 
 def cross_entropy(pred, target):
-    pred = torch.log(pred)
     return torch.mean(torch.sum(-target * pred, 1))
 
-def cross_entropy1(pred, target):
-    pred = torch.log_softmax(pred, dim=-1)
-    return -torch.sum(target * pred, 1)
-
 def KL(pred, target):
-    return F.kl_div(pred.log(), target)
-
-
-def train_altopt_PTA(model, data, train_idx, optimizer, args=None):
-    model.train()
-    label = model.FF
-    train_mask = data.train_mask
-    optimizer.zero_grad()
-    y_hat = model(data=data)
-    gamma = math.log(1 + (args.current_epoch-1)/100)
-    y_hat_con = torch.detach(torch.softmax(y_hat, dim=-1))
-    loss = - torch.sum(
-        torch.mul(torch.log_softmax(y_hat, dim=-1), label)) / args.num_class
-    loss.backward()
-    optimizer.step()
-    return loss.item()
-
+    return F.kl_div(pred, target)
 
 
 def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optimizer, args=None):
@@ -43,7 +22,6 @@ def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optim
     if label is None:
         label = model.prop.init_label(data)
     train_mask = data.train_mask
-    pseudo_mask = data.pseudo_mask
     total_weight = torch.zeros(y.shape[0]).cuda()
     total_weight[train_mask] = 1
 
@@ -52,16 +30,33 @@ def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optim
     else:
         num = 100
     if args.current_epoch > 0:
-        for i in range(args.num_class):
-            weight = 1 - torch.sum(-label * torch.log(label.clamp(min=1e-8)), 1) / math.log(args.num_class)
-            _, index = label.max(dim=1)
-            pos = (index == i)
-            weight[~pos] = 0
-            weight[train_mask] = 0
-            value, indices = torch.topk(weight, num)
-            total_weight[indices] = value
-    diff = out - label
-    diff = torch.sum(diff * diff, 1)
+        if args.weightedloss:
+            tlabel = F.softmax(label/args.temperature, dim=-1)
+            weight = 1 - torch.sum(-tlabel * torch.log(tlabel.clamp(min=1e-8)), 1) / math.log(args.num_class)
+            index = label.argmax(dim=1)
+            for i in range(args.num_class):
+                tweight = weight.clone()
+                pos = (index == i)
+                tweight[~pos] = 0
+                tweight[train_mask] = 0
+                value, indices = torch.topk(tweight, num)
+                total_weight[indices] = value
+        else:
+            tlabel = F.softmax(label/args.temperature, dim=-1)
+            weight = 1 - torch.sum(-tlabel * torch.log(tlabel.clamp(min=1e-8)), 1) / math.log(args.num_class)
+            index = label.argmax(dim=1)
+            for i in range(args.num_class):
+                tweight = weight.clone()
+                pos = (index == i)
+                tweight[~pos] = 0
+                tweight[train_mask] = 0
+                value, indices = torch.topk(tweight, num)
+                total_weight[indices] = value
+    if args.loss == "MSE":
+        diff = out - label
+    elif args.loss == "CE":
+        diff = - label * out
+    diff = torch.sum(diff * diff, 1) 
     loss = torch.sum(total_weight * diff)
     loss.backward()
     optimizer.step()

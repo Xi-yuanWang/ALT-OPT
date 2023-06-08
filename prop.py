@@ -124,9 +124,6 @@ class Propagation(MessagePassing):
         label = self.label
         mask = data.train_mask
 
-        if self.args.loss == 'CE':
-            if self.args.current_epoch != 1:
-                mlp = torch.log(mlp)
         for k in range(K):
             AF = self.propagate(edge_index, x=FF, edge_weight=None, size=None)
             if self.args.loss == 'CE':
@@ -135,7 +132,6 @@ class Propagation(MessagePassing):
             else:
                 FF[mask] = 1/(lambda1+lambda2+1) * AF[mask] + lambda1/(lambda1+lambda2+1) * mlp[mask] + lambda2/(lambda1+lambda2+1) * label[mask]  ## for labeled nodes
                 FF[~mask] = 1/(lambda1+1) * AF[~mask] + lambda1/(lambda1+1) * mlp[~mask] ## for unlabeled nodes
-        FF = F.softmax(FF/0.2, dim=1)
         return FF
     
 
@@ -172,14 +168,12 @@ class Propagation(MessagePassing):
         Leftmat = data.Leftmat
         if getattr(data, "plabel", None) is None:
             plabel = torch.as_tensor(cpsplg.spsolve(Leftmat, cp.asarray(label)), device=label.device)
-            if onlyy and softmaxF:
-                plabel = F.softmax(plabel/0.2, dim=1)
             setattr(data, "plabel", plabel)
         if onlyy:
             FF = data.plabel
         else:
             if self.args.loss == 'CE':
-                Rightmat = (lambda1/2)*torch.log(mlp)
+                Rightmat = (lambda1/2)*mlp
             else:
                 Rightmat = lambda1*mlp
             if usecg:
@@ -187,8 +181,6 @@ class Propagation(MessagePassing):
             else:
                 FF = cpsplg.spsolve(Leftmat, cp.asarray(Rightmat)) 
             FF = torch.as_tensor(FF, device=label.device) + data.plabel
-            if softmaxF:
-                FF = F.softmax(FF/0.2, dim=1)
         return FF
 
 
@@ -227,7 +219,7 @@ class Propagation(MessagePassing):
         diagterm = data.diagterm
 
         if self.args.loss == 'CE':
-            Rightmat = (lambda1/2)*torch.log(mlp) + lambda2*label
+            Rightmat = (lambda1/2)*mlp + lambda2*label
         else:
             Rightmat = lambda1*mlp + lambda2*label
         biasterm = diagterm*Rightmat
@@ -239,8 +231,6 @@ class Propagation(MessagePassing):
             G = FF + agdcoeff[i] * deltaF
             nF = biasterm + diagterm * (edge_index@G)
             deltaF, FF = nF-FF, nF
-        if softmaxF:
-            FF = F.softmax(FF/0.2, dim=1)
         return FF
 
     def appnp_forward(self, x, hh, edge_index, K, alpha):
