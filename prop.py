@@ -12,6 +12,9 @@ import torch_sparse
 from torch_sparse import SparseTensor, matmul
 import numpy as np
 import math
+import cupy as cp
+import cupy.sparse as cpsp
+import cupy.sparse.linalg as cpsplg
 
 from myutil import set_signal_by_label  ## remove
 
@@ -96,7 +99,8 @@ class Propagation(MessagePassing):
                                    edge_weight=edge_weight)
         elif mode == 'ORTGNN':
             x = self.ort_forward(x=x, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
-
+        elif mode == "exact":
+            x = self.exact_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
         else:
             raise ValueError('wrong propagate mode')
         return x
@@ -129,6 +133,48 @@ class Propagation(MessagePassing):
             else:
                 FF[mask] = 1/(lambda1+lambda2+1) * AF[mask] + lambda1/(lambda1+lambda2+1) * mlp[mask] + lambda2/(lambda1+lambda2+1) * label[mask]  ## for labeled nodes
                 FF[~mask] = 1/(lambda1+1) * AF[~mask] + lambda1/(lambda1+1) * mlp[~mask] ## for unlabeled nodes
+        FF = F.softmax(FF/0.2, dim=1)
+        return FF
+    
+
+    def exact_forward(self, mlp, FF, edge_index: SparseTensor, K, alpha, data):
+        lambda1 = self.args.lambda1
+        lambda2 = self.args.lambda2
+        print(lambda1, lambda2)
+        if not torch.is_tensor(self.label):
+            self.label = self.init_label(data)
+            print('init label')
+        label = self.label
+        mask = data.train_mask
+        rowptr, col, val = edge_index.csr()
+        if val is None:
+            raise NotImplementedError
+            # should be gcn weight
+            val = torch.ones_like(col, dtype=torch.float)
+        
+        rowptr, col, val = cp.asarray(rowptr), cp.asarray(col), cp.asarray(val)
+
+        N = data.num_nodes
+
+        if getattr(data, "Leftmat", None) is None:
+            if self.args.loss == 'CE':
+                diagterm = torch.ones(N, device=label.device)
+                diagterm[mask] += lambda2
+            else:
+                diagterm = torch.empty(N, device=label.device).fill_(lambda1+1)
+                diagterm[mask] += lambda2
+            Leftmat = cpsp.csr_matrix((-val, (col, rowptr)), dtype=cp.float32, shape=(N, N))
+            Leftmat.setdiag(cp.asarray(diagterm))
+            setattr(data, "Leftmat", Leftmat)
+        Leftmat = data.Leftmat
+        if getattr(data, "plabel", None) is None:
+            setattr(data, "plabel", torch.as_tensor(cpsplg.spsolve(Leftmat, cp.asarray(label)), device=label.device))
+        if self.args.loss == 'CE':
+            Rightmat = (lambda1/2)*torch.log(mlp)
+        else:
+            Rightmat = lambda1*mlp
+        FF = cpsplg.spsolve(Leftmat, Rightmat) 
+        FF = torch.as_tensor(FF, device=label.device) + data.plabel
         FF = F.softmax(FF/0.2, dim=1)
         return FF
 

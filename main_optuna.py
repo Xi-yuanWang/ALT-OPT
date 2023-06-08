@@ -130,7 +130,7 @@ def objective(trial):
             continue
 
         model.reset_parameters()
-        if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', 'APPNP', 'MLP', 'CS']:
+        if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', "EXACT", 'APPNP', 'MLP', 'CS']:
             model.propagate(data)
             print('propagate done')
 
@@ -148,7 +148,7 @@ def objective(trial):
             y_soft = None
 
             args.current_epoch = 0
-            if args.model == 'ALTOPT':
+            if args.model in ['ALTOPT', "EXACT"]:
                 for i in range(100):
                     loss = train_altopt(model, data, train_idx, optimizer, args=args)
 
@@ -157,7 +157,7 @@ def objective(trial):
                 args.current_epoch = 1
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
-                if args.model == 'ALTOPT':
+                if args.model in ['ALTOPT', "EXACT"]:
                     model.propagate_update(data, K=args.K)
                     for ii in range(args.loop):
                         loss = train_altopt(model, data, train_idx, optimizer, args=args)
@@ -230,10 +230,11 @@ def objective(trial):
 
     return valid_acc
 
-def set_up_trial(trial, args):
+def set_up_trial(trial: optuna.Trial, args):
     args.lr     = trial.suggest_uniform('lr', 0, 1)
     args.weight_decay     = trial.suggest_uniform('weight_decay', 0, 1)
     args.dropout     = trial.suggest_uniform('dropout', 0, 1)
+    args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
 
     if args.model == 'GCN':
         pass
@@ -246,11 +247,11 @@ def set_up_trial(trial, args):
         args.pro_alpha = trial.suggest_uniform('pro_alpha', 0, 1.00001)
         args.K = trial.suggest_uniform('K', 0, 1000)
 
-    elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN']:
+    elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT"]:
         if True:
             args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
             args.lambda2 = trial.suggest_uniform('lambda2', 0, 1000)
-            args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
+            args.alpha = 0 #trial.suggest_uniform('alpha', 0, 1.00001)
             print('lambda1: ', args.lambda1)
             print('lambda2: ', args.lambda2)
             args.loop = trial.suggest_uniform('loop', 0, 10)
@@ -292,6 +293,7 @@ def set_up_search_space(args):
     num_smooth_layer_range = [args.num_smooth_layer]
     smooth_alpha_range = [args.smooth_alpha]
     pro_alpha_range = [args.pro_alpha]
+    loss_range = ["CE", "MSE"]
     if args.loop is None:
         loop = [1]
     if args.dropout is None:
@@ -366,9 +368,28 @@ def set_up_search_space(args):
             lambda1_range = [0.1, 0.3, 0.5, 1]
             lambda2_range = [1, 3, 5, 10]
         if args.alpha is None:
-            alpha_range = [0, 0.1, 0.3, 0.5, 0.7, 0.9]
+            alpha_range = [0.3, 0.5, 0.7, 0.9]
         if args.K is None:
             K_range = [1, 5, 10, 20, 50]
+        if args.loop is None:
+            loop = [1, 5, 10]
+
+    if args.model in ['EXACT']:
+        range_list = [0.01, 0.02, 0.05, 0.1, 0.2]
+
+        if args.lambda1 is None:
+            lambda1_range = range_list
+        
+        if args.lambda2 is None:
+            lambda2_range = [0, 0.01, 0.05, 0.1, 0.2, 0.3]
+
+        if args.lambda1 is None and args.lambda2 is None:
+            range_list = [0.01, 0.1, 0.4, 0.5, 0.6, 0.8]
+            lambda1_range = [0.1, 0.3, 0.5, 1]
+            lambda2_range = [1, 3, 5, 10]
+        if args.alpha is None:
+            alpha_range = [0]
+        K_range = [0]
         if args.loop is None:
             loop = [1, 5, 10]
 
@@ -416,6 +437,7 @@ def set_up_search_space(args):
                     "num_smooth_layer": num_smooth_layer_range,
                     "smooth_alpha": smooth_alpha_range,
                     "pro_alpha": pro_alpha_range,
+                    "loss": loss_range
                     }
     return search_space
 

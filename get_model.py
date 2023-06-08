@@ -18,7 +18,7 @@ def get_model(args, dataset, all_features):
     # else:
     from model import SAGE, GCN, APPNP, MLP, SGC, GAT, APPNP_Hidden, APPNP_Concat, IAPPNP, CSMLP, ORTGNN, LP #, ChebNet
         # from egnn import ElasticGNN
-    from model_ALTOPT import ALTOPT
+    from model_ALTOPT import ALTOPT, ExactALTOPT
 
     if args.model == 'SAGE':
         model = SAGE(in_channels=data.all_features,
@@ -197,6 +197,20 @@ def get_model(args, dataset, all_features):
                     args=args)
         
         model = ALTOPT(in_channels=data.all_features,
+                       hidden_channels=args.hidden_channels, 
+                       out_channels=dataset.num_classes, 
+                       dropout=args.dropout, 
+                       num_layers=args.num_layers, 
+                       prop=prop,
+                       args=args).cuda()
+    elif args.model == 'EXACT':
+        prop =  Propagation(K=args.K, 
+                    alpha=args.alpha, 
+                    mode=args.prop,
+                    cached=True,
+                    args=args)
+        
+        model = ExactALTOPT(in_channels=data.all_features,
                        hidden_channels=args.hidden_channels, 
                        out_channels=dataset.num_classes, 
                        dropout=args.dropout, 
