@@ -1,6 +1,24 @@
 import torch
 import argparse
 from torch_sparse import SparseTensor
+import cupy as cp
+
+def cg(Q: cp.ndarray, B: cp.ndarray, F: cp.ndarray, K: int):
+    g = Q@F - B
+    d = -g
+    Qd = Q@d
+    dnorm = cp.inner(d.flatten(), Qd.flatten())
+    alpha = - cp.inner(g.flatten(), d.flatten())/dnorm
+    F += alpha * d
+    for k in range(1, K):
+        g = Q@F - B
+        beta = -cp.inner(g.flatten(), Qd.flatten())/dnorm
+        d = -g + beta*d
+        Qd = Q@d
+        dnorm = cp.inner(d.flatten(), Qd.flatten())
+        alpha = - cp.inner(g.flatten(), d.flatten())/dnorm
+        F += alpha * d
+    return F
 
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):

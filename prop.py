@@ -15,8 +15,9 @@ import math
 import cupy as cp
 import cupy.sparse as cpsp
 import cupy.sparse.linalg as cpsplg
+from util import cg
 
-from myutil import set_signal_by_label  ## remove
+
 
 class Propagation(MessagePassing):
     r"""The elastive message passing layer from 
@@ -91,7 +92,6 @@ class Propagation(MessagePassing):
 
         if mode == 'APPNP':
             x = self.appnp_forward(x=x, hh=hh, edge_index=edge_index, K=self.K, alpha=alpha)
-        
         elif mode == 'ALTOPT':
             x = self.apt_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
         elif mode == 'CS':
@@ -99,8 +99,10 @@ class Propagation(MessagePassing):
                                    edge_weight=edge_weight)
         elif mode == 'ORTGNN':
             x = self.ort_forward(x=x, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
-        elif mode == "exact":
+        elif mode == "EXACT":
             x = self.exact_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
+        elif mode == "AGD":
+            x = self.agd_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
         else:
             raise ValueError('wrong propagate mode')
         return x
@@ -140,42 +142,105 @@ class Propagation(MessagePassing):
     def exact_forward(self, mlp, FF, edge_index: SparseTensor, K, alpha, data):
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
-        print(lambda1, lambda2)
+        onlyy = self.args.onlyy
+        usecg = self.args.usecg
+        softmaxF = self.args.softmaxF
         if not torch.is_tensor(self.label):
             self.label = self.init_label(data)
             print('init label')
         label = self.label
         mask = data.train_mask
-        rowptr, col, val = edge_index.csr()
-        if val is None:
-            raise NotImplementedError
-            # should be gcn weight
-            val = torch.ones_like(col, dtype=torch.float)
-        
-        rowptr, col, val = cp.asarray(rowptr), cp.asarray(col), cp.asarray(val)
-
-        N = data.num_nodes
 
         if getattr(data, "Leftmat", None) is None:
+            N = data.num_nodes
+            rowptr, col, val = edge_index.csr()
+            if val is None:
+                raise NotImplementedError
+                # should be gcn weight
+                val = torch.ones_like(col, dtype=torch.float)
+            
+            rowptr, col, val = cp.asarray(rowptr), cp.asarray(col), cp.asarray(val)
             if self.args.loss == 'CE':
                 diagterm = torch.ones(N, device=label.device)
                 diagterm[mask] += lambda2
             else:
                 diagterm = torch.empty(N, device=label.device).fill_(lambda1+1)
                 diagterm[mask] += lambda2
-            Leftmat = cpsp.csr_matrix((-val, (col, rowptr)), dtype=cp.float32, shape=(N, N))
+            Leftmat = cpsp.csr_matrix((-val, col, rowptr), dtype=cp.float32, shape=(N, N))
             Leftmat.setdiag(cp.asarray(diagterm))
             setattr(data, "Leftmat", Leftmat)
         Leftmat = data.Leftmat
         if getattr(data, "plabel", None) is None:
-            setattr(data, "plabel", torch.as_tensor(cpsplg.spsolve(Leftmat, cp.asarray(label)), device=label.device))
-        if self.args.loss == 'CE':
-            Rightmat = (lambda1/2)*torch.log(mlp)
+            plabel = torch.as_tensor(cpsplg.spsolve(Leftmat, cp.asarray(label)), device=label.device)
+            if onlyy and softmaxF:
+                plabel = F.softmax(plabel/0.2, dim=1)
+            setattr(data, "plabel", plabel)
+        if onlyy:
+            FF = data.plabel
         else:
-            Rightmat = lambda1*mlp
-        FF = cpsplg.spsolve(Leftmat, Rightmat) 
-        FF = torch.as_tensor(FF, device=label.device) + data.plabel
-        FF = F.softmax(FF/0.2, dim=1)
+            if self.args.loss == 'CE':
+                Rightmat = (lambda1/2)*torch.log(mlp)
+            else:
+                Rightmat = lambda1*mlp
+            if usecg:
+                FF = cg(Leftmat, cp.asarray(Rightmat), cp.asarray(FF), K)
+            else:
+                FF = cpsplg.spsolve(Leftmat, cp.asarray(Rightmat)) 
+            FF = torch.as_tensor(FF, device=label.device) + data.plabel
+            if softmaxF:
+                FF = F.softmax(FF/0.2, dim=1)
+        return FF
+
+
+    def agd_forward(self, mlp, FF, edge_index: SparseTensor, K, alpha, data):
+        lambda1 = self.args.lambda1
+        lambda2 = self.args.lambda2
+        softmaxF = self.args.softmaxF
+
+        if not torch.is_tensor(self.label):
+            self.label = self.init_label(data)
+            print('init label')
+        label = self.label
+        mask = data.train_mask
+
+        if getattr(self, "agdcoeff", None) is None:
+            thetas = [1]
+            ttheta = 1
+            coeff = []
+            for i in range(1, K+1):
+                ttheta = ((ttheta**4 + 4*ttheta**2)**0.5-ttheta**2)/2
+                coeff.append(ttheta*(1-thetas[-1])/thetas[-1])
+                thetas.append(ttheta)
+            setattr(self, "agdcoeff", coeff)
+        agdcoeff = self.agdcoeff
+
+        if getattr(data, "diagterm", None) is None:
+            N = data.num_nodes
+            if self.args.loss == 'CE':
+                diagterm = torch.empty(N, device=label.device).fill_(lambda1+2)
+                diagterm[mask] += lambda2
+            else:
+                diagterm = torch.empty(N, device=label.device).fill_(2)
+                diagterm[mask] += lambda2
+            setattr(data, "diagterm", 1/diagterm.reshape(-1, 1))
+
+        diagterm = data.diagterm
+
+        if self.args.loss == 'CE':
+            Rightmat = (lambda1/2)*torch.log(mlp) + lambda2*label
+        else:
+            Rightmat = lambda1*mlp + lambda2*label
+        biasterm = diagterm*Rightmat
+        
+        G = FF        
+        FF = biasterm + diagterm * (edge_index@G)
+        deltaF = FF-G
+        for i in range(1, K):
+            G = FF + agdcoeff[i] * deltaF
+            nF = biasterm + diagterm * (edge_index@G)
+            deltaF, FF = nF-FF, nF
+        if softmaxF:
+            FF = F.softmax(FF/0.2, dim=1)
         return FF
 
     def appnp_forward(self, x, hh, edge_index, K, alpha):

@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from ogb.nodeproppred import Evaluator
 import  math
 import torch.nn as nn
+from torch_geometric.data import Data as PygData
 
 def cross_entropy(pred, target):
     pred = torch.log(pred)
@@ -32,7 +33,7 @@ def train_altopt_PTA(model, data, train_idx, optimizer, args=None):
 
 
 
-def train_altopt(model, data, train_idx, optimizer, args=None):
+def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optimizer, args=None):
     y = data.y
     model.train()
     optimizer.zero_grad()

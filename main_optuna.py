@@ -41,9 +41,13 @@ def parse_args():
     parser.add_argument('--defense', type=str, default=None) # no use
     parser.add_argument('--ptb_rate', type=float, default=0) # no use
     parser.add_argument('--sort_key', type=str, default='K')
-    parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False) # no use
+
+    parser.add_argument('--softmaxF', type=str2bool, default=True)
+    parser.add_argument("--onlyy", type=str2bool, default=False)
+    parser.add_argument("--usecg", type=str2bool, default=True)
     
-    parser.add_argument('--loss', type=str, default='CE', choices=["CE", "MSE"])
+    parser.add_argument('--loss', type=str, default=None, choices=["CE", "MSE"])
     parser.add_argument('--LP', type=str2bool, default=False, help='Label propagation') #only in EMP
     parser.add_argument('--loop', type=int, default=None, help='Iteration number of MLP each epoch')
     parser.add_argument('--fix_num', type=int, default=0, help='number of train sample each class')
@@ -130,7 +134,7 @@ def objective(trial):
             continue
 
         model.reset_parameters()
-        if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', "EXACT", 'APPNP', 'MLP', 'CS']:
+        if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', "AGD", "EXACT", 'APPNP', 'MLP', 'CS']:
             model.propagate(data)
             print('propagate done')
 
@@ -148,7 +152,7 @@ def objective(trial):
             y_soft = None
 
             args.current_epoch = 0
-            if args.model in ['ALTOPT', "EXACT"]:
+            if args.model in ['ALTOPT', "EXACT", "AGD"]:
                 for i in range(100):
                     loss = train_altopt(model, data, train_idx, optimizer, args=args)
 
@@ -157,7 +161,7 @@ def objective(trial):
                 args.current_epoch = 1
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
-                if args.model in ['ALTOPT', "EXACT"]:
+                if args.model in ['ALTOPT', "EXACT", "AGD"]:
                     model.propagate_update(data, K=args.K)
                     for ii in range(args.loop):
                         loss = train_altopt(model, data, train_idx, optimizer, args=args)
@@ -234,7 +238,8 @@ def set_up_trial(trial: optuna.Trial, args):
     args.lr     = trial.suggest_uniform('lr', 0, 1)
     args.weight_decay     = trial.suggest_uniform('weight_decay', 0, 1)
     args.dropout     = trial.suggest_uniform('dropout', 0, 1)
-    args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
+    if args.loss is None:
+        args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
 
     if args.model == 'GCN':
         pass
@@ -247,10 +252,10 @@ def set_up_trial(trial: optuna.Trial, args):
         args.pro_alpha = trial.suggest_uniform('pro_alpha', 0, 1.00001)
         args.K = trial.suggest_uniform('K', 0, 1000)
 
-    elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT"]:
+    elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT", "AGD"]:
         if True:
-            args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
-            args.lambda2 = trial.suggest_uniform('lambda2', 0, 1000)
+            args.lambda1 = trial.suggest_uniform('lambda1', 0, 1)
+            args.lambda2 = trial.suggest_uniform('lambda2', 0, 10)
             args.alpha = 0 #trial.suggest_uniform('alpha', 0, 1.00001)
             print('lambda1: ', args.lambda1)
             print('lambda2: ', args.lambda2)
@@ -293,7 +298,10 @@ def set_up_search_space(args):
     num_smooth_layer_range = [args.num_smooth_layer]
     smooth_alpha_range = [args.smooth_alpha]
     pro_alpha_range = [args.pro_alpha]
-    loss_range = ["CE", "MSE"]
+    if args.loss is None:
+        loss_range = ["CE", "MSE"]
+    else:
+        loss_range = [args.loss]
     if args.loop is None:
         loop = [1]
     if args.dropout is None:
@@ -353,7 +361,7 @@ def set_up_search_space(args):
         if args.alpha is None:
             alpha_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-    if args.model in ['ALTOPT']:
+    if args.model in ['ALTOPT', "AGD"]:
         range_list = [0.01, 0.02, 0.05, 0.1, 0.2]
 
         if args.lambda1 is None:
@@ -389,7 +397,7 @@ def set_up_search_space(args):
             lambda2_range = [1, 3, 5, 10]
         if args.alpha is None:
             alpha_range = [0]
-        K_range = [0]
+        K_range = [10]
         if args.loop is None:
             loop = [1, 5, 10]
 
