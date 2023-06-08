@@ -117,12 +117,6 @@ class Propagation(MessagePassing):
             print('init label')
         label = self.label
         mask = data.train_mask
-        '''
-        the mlp weight
-        '''
-        # weight = 1 - torch.sum(-label * torch.log(mlp.clamp(min=1e-8)), 1) / math.log(self.num_class)
-        # indices = (weight < 0.3)
-        # mlp[indices] = 1
 
         if self.args.loss == 'CE':
             if self.args.current_epoch != 1:

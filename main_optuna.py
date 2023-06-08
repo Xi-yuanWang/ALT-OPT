@@ -15,45 +15,46 @@ from myutil import sort_trials
 
 def parse_args():
     parser = argparse.ArgumentParser(description='ALTOPT')
+    parser.add_argument('--seed', type=int, default=12321312)
     parser.add_argument('--log_steps', type=int, default=0)
     parser.add_argument('--dataset', type=str, default='Cora')
+    parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--runs', type=int, default=3)
+    parser.add_argument('--normalize_features', type=str2bool, default=True, help="whether to normalize node feature")
+    parser.add_argument('--random_splits', type=int, default=0, help='default use fix split')
+
     parser.add_argument('--model', type=str, default='ALTOPT')
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--hidden_channels', type=int, default=64)
     parser.add_argument('--dropout', type=float, default=None)
     parser.add_argument('--weight_decay', type=float, default=None)
     parser.add_argument('--lr', type=float, default=None)
-    parser.add_argument('--epochs', type=int, default=500)
-    parser.add_argument('--runs', type=int, default=3)
-    parser.add_argument('--normalize_features', type=str2bool, default=True)
-    parser.add_argument('--random_splits', type=int, default=0, help='default use fix split')
-    parser.add_argument('--seed', type=int, default=12321312)
 
-    parser.add_argument('--prop', type=str, default='EMP')
-    parser.add_argument('--K', type=int, default=None)
-    parser.add_argument('--gamma', type=float, default=None)
+    parser.add_argument('--prop', type=str, default='EMP') # useless
+    parser.add_argument('--K', type=int, default=None) # number of propagation
+    parser.add_argument('--gamma', type=float, default=None) # used in EMP prop
     parser.add_argument('--lambda1', type=float, default=None)
     parser.add_argument('--lambda2', type=float, default=None)
-    parser.add_argument('--L21', type=str2bool, default=True)
-    parser.add_argument('--alpha', type=float, default=None)
+    parser.add_argument('--L21', type=str2bool, default=True) # useless
+    parser.add_argument('--alpha', type=float, default=None) # PPR alpha
     
-    parser.add_argument('--defense', type=str, default=None)
-    parser.add_argument('--ptb_rate', type=float, default=0)
+    parser.add_argument('--defense', type=str, default=None) # no use
+    parser.add_argument('--ptb_rate', type=float, default=0) # no use
     parser.add_argument('--sort_key', type=str, default='K')
     parser.add_argument('--debug', type=str2bool, default=False)
     
-    parser.add_argument('--loss', type=str, default='CE', help='CE, MSE')
-    parser.add_argument('--LP', type=str2bool, default=False, help='Label propagation')
+    parser.add_argument('--loss', type=str, default='CE', choices=["CE", "MSE"])
+    parser.add_argument('--LP', type=str2bool, default=False, help='Label propagation') #only in EMP
     parser.add_argument('--loop', type=int, default=None, help='Iteration number of MLP each epoch')
     parser.add_argument('--fix_num', type=int, default=0, help='number of train sample each class')
     parser.add_argument('--proportion', type=float, default=0, help='proportion of train sample each class')
-    parser.add_argument('--has_weight', type=str2bool, default=True)
-    parser.add_argument('--noise', type=float, default=0, help='labe noise ratio')
+    parser.add_argument('--has_weight', type=str2bool, default=True) # no use
+    parser.add_argument('--noise', type=float, default=0, help='label noise ratio')
     parser.add_argument('--num_correct_layer', type=int, default=None)
     parser.add_argument('--correct_alpha', type=float, default=None)
     parser.add_argument('--num_smooth_layer', type=int, default=None)
     parser.add_argument('--smooth_alpha', type=float, default=None)
-    parser.add_argument('--spectral', type=str2bool, default=False)
+    parser.add_argument('--spectral', type=str2bool, default=False) # spectral embedding
     parser.add_argument('--pro_alpha', type=float, default=None)
     parser.add_argument('--const_split', type=str2bool, default=False)
 
@@ -188,15 +189,6 @@ def objective(trial):
                               f'Train: {100 * train_acc:.2f}%, '
                               f'Valid: {100 * valid_acc:.2f}% '
                               f'Test: {100 * test_acc:.2f}%')
-            # if args.model == 'ALTOPT':
-            #     # torch.save(y_soft, 'alt_soft1.th')
-            #     # y_soft = torch.load('y_soft2.th')
-            #     # test1(model, data, y_soft, split_idx, args=args)
-            #     # test1(model, data, y_soft1, split_idx, args=args)
-            #     model.mlp = y_soft
-            #     model.propagate_update(data, K=args.K)
-            #     result = test_altopt(model, data, split_idx, args=args)
-            #     logger.add_result(runs_overall, result)
             if args.model == 'CS':
                 print('best_acc', best_acc)
                 # adj_t = data.adj_t.to(device)
@@ -253,9 +245,6 @@ def set_up_trial(trial, args):
         args.alpha     = trial.suggest_uniform('alpha', 0, 1.00001)
         args.pro_alpha = trial.suggest_uniform('pro_alpha', 0, 1.00001)
         args.K = trial.suggest_uniform('K', 0, 1000)
-        ## set lambda in APPNP in order to test pattern
-        # args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
-        # args.lambda2 = trial.suggest_uniform('lambda2', 0, 1000)
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN']:
         if True:
@@ -267,7 +256,7 @@ def set_up_trial(trial, args):
             args.loop = trial.suggest_uniform('loop', 0, 10)
 
         elif args.prop == 'CP':
-            args.alpha     = trial.suggest_uniform('alpha', 0, 1.00001)
+            args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
 
         args.K = trial.suggest_uniform('K', 0, 1000)
     
@@ -309,16 +298,11 @@ def set_up_search_space(args):
         dropout_range = [0.5, 0.8]
 
     if args.lr is None:
-        # lr_range = [0.01, 0.005, 0.05]  ## 0.005 always worst
-        # lr_range = [0.01, 0.05] ## 0.05 typically the best but we keep lr fixed as 0.01 since most model use 0.01
         lr_range = [0.1, 0.01, 0.05, 0.001, 0.0005, 0.0001]
 
     if args.weight_decay is None:
-        # wd_range = [0.0001, 0.0005, 0.00005]  ## photo and computer?
-        wd_range = [5e-3, 5e-4, 5e-5]  ## seems 5e-3 is not good in general
-        # wd_range = [5e-4, 5e-5, 5e-6,  5e-7]  ## seems 5e-3 is not good in general
-        wd_range = [5e-4, 5e-5]  ## seems 5e-3 is not good in general
-        # wd_range = [5e-4, 5e-5, 5e-6]  ## for fix lambda1 and lambda2
+        wd_range = [5e-3, 5e-4, 5e-5]
+        wd_range = [5e-4, 5e-5]
 
     if args.model == 'LP':
         if args.alpha is None:
@@ -326,23 +310,14 @@ def set_up_search_space(args):
 
     if args.model == 'APPNP' or args.prop == 'APPNP' or args.model == 'IAPPNP' or args.model == 'MLP':
         if args.alpha is None:
-            # alpha_range = np.linspace(0.05, 0.2, 4).tolist()
-            # alpha_range = [0, 0.1, 0.2, 0.3]
-            alpha_range = [0, 0.05, 0.1, 0.15] #, 0.20]
-            # alpha_range = [0.05, 0.1] #, 0.15] #, 0.20]
-            # alpha_range = [0.3, 1, 1.5, 2]
+            alpha_range = [0, 0.05, 0.1, 0.15] 
             alpha_range = [0, 0.1, 0.2]
             if 'adv' in args.dataset:
-                alpha_range = [0, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0]  ## for attacking dataset
-            # alpha_range = [0, 0.1, 0.2, 0.3] # for normal dataset
-            # alpha_range = [0.1, 0.2] # for Citation. coauthorship and co-purchase
-            # alpha_range = [0, 0.1, 0.2] # for obgn-arxiv
+                alpha_range = [0, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
         if args.pro_alpha is None:
             pro_alpha_range = [0, 0.1, 0.3, 0.8, 1, 1.5, 2]
         if args.K is None:
             K_range = [5, 10]
-            # K_range = [0, 2, 4, 6, 8, 10, 12]
-
 
     if args.model in ['ElasticGNN'] and args.prop == 'EMP':
         range_list = [0, 3, 6, 9, 15]
@@ -390,21 +365,12 @@ def set_up_search_space(args):
 
             lambda1_range = [0.1, 0.3, 0.5, 1]
             lambda2_range = [1, 3, 5, 10]
-
-            # lambda1_range = [0, 0.01, 0.02]
-            ## for new prop
-            # lambda1_range = [0.01, 0.05, 0.1]
-            # lambda2_range = [0.05, 0.1, 0.5, 1]
         if args.alpha is None:
             alpha_range = [0, 0.1, 0.3, 0.5, 0.7, 0.9]
-            # alpha_range = [0.4, 0.6, 0.8, 0.9]
-            # print('---------', alpha_range)
         if args.K is None:
             K_range = [1, 5, 10, 20, 50]
-            # K_range = [1]
         if args.loop is None:
             loop = [1, 5, 10]
-        # alpha_range = [0]
 
     if args.model in ['ORTGNN']:
         alpha_range = [0]
@@ -424,7 +390,6 @@ def set_up_search_space(args):
 
         if args.K is None:
             K_range = [1, 5, 10]
-            # K_range = [1]
 
     if args.model in ['CS']:
         if args.num_correct_layer is None:
@@ -433,7 +398,6 @@ def set_up_search_space(args):
             correct_alpha_range = [1, 0.9, 0.5, 0.3, 0.1, 0]
         if args.num_smooth_layer is None:
             num_smooth_layer_range = [20, 50]
-            # print(num_smooth_layer_range)
         if args.smooth_alpha is None:
             smooth_alpha_range = [0.8, 0.6, 0.3, 0.1, 0]
         if args.alpha is None:
@@ -487,7 +451,6 @@ if __name__ == "__main__":
     test_acc = []
     for trial in sorted_trial:
         test_acc.append(trial.user_attrs['test'])
-        # import ipdb; ipdb.set_trace()
     print('test_acc')
     print(test_acc)
 
