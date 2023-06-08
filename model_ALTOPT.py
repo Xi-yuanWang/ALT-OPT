@@ -96,22 +96,24 @@ class ALTOPT(torch.nn.Module):
         super(ALTOPT, self).__init__()
         num_layers = args.num_layers
         self.hidden_channels = hidden_channels
-        '''
-        self.lins = torch.nn.ModuleList()
-        self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
-        self.bns = torch.nn.ModuleList()
-        self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.lins = Sequential()
+        self.lins.append(Linear(in_channels, hidden_channels))
+        self.lins.append(nn.BatchNorm1d(hidden_channels))
+        self.lins.append(nn.Dropout(dropout, inplace=True))
+        self.lins.append(nn.ReLU(inplace=True))
         for _ in range(num_layers - 2):
-            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
-            self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
-        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
-        '''
+            self.lins.append(Linear(hidden_channels, hidden_channels))
+            self.lins.append(nn.BatchNorm1d(hidden_channels))
+            self.lins.append(nn.Dropout(dropout, inplace=True))
+            self.lins.append(nn.ReLU(inplace=True))
+        self.lins.append(nn.Linear(hidden_channels, out_channels))
         self.dropout = dropout
         self.prop = prop
         self.args = args
         self.add_self_loops = True
         self.FF = None
         self.mlp = None
+        self.useGCN = args.useGCN
         self.gcn = GCN(in_channels, hidden_channels, out_channels, dropout, 2)
         self.output = nn.LogSoftmax(dim=-1) if args.loss == "CE" else nn.Identity()
 
@@ -146,23 +148,15 @@ class ALTOPT(torch.nn.Module):
     def forward(self, data, index=None):
         if self.FF is None:
             self.FF = self.prop.init_label(data)
-        # x, adj_t = data.x, data.adj_t
-        # # x = self.x
-        # x = F.dropout(x, p=self.dropout, training=self.training)
-        # if index is not None:
-        #     x = x[index]
-        # for i, lin in enumerate(self.lins[:-1]):
-        #     x = lin(x)
-        #     # x = self.bns[i](x)
-        #     x = F.relu(x)
-        #     x = F.dropout(x, p=self.dropout, training=self.training)
-        # x = self.lins[-1](x)
-        x = self.gcn(data)
+        if self.useGCN:
+            x = self.gcn(data)
+        else:
+            # x, adj_t = data.x, data.adj_t
+            x = self.x
+            x = self.lins(x)
         x = self.output(x)
-        # x = F.log_softmax(x, dim=1)
-        
+
         if not self.training:
-            ## there is no dropout in test
             self.mlp = x.clone().detach()
         return x
 

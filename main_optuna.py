@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument('--debug', type=str2bool, default=False) # no use
 
     parser.add_argument('--softmaxF', type=str2bool, default=True)
+    parser.add_argument('--useGCN', type=str2bool, default=True)
     parser.add_argument("--onlyy", type=str2bool, default=False)
     parser.add_argument("--usecg", type=str2bool, default=True)
     parser.add_argument("--weightedloss", type=str2bool, default=True)
