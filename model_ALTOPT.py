@@ -107,6 +107,7 @@ class ALTOPT(torch.nn.Module):
             self.lins.append(nn.Dropout(dropout, inplace=True))
             self.lins.append(nn.ReLU(inplace=True))
         self.lins.append(nn.Linear(hidden_channels, out_channels))
+        self.lins.append(nn.LogSoftmax(dim=-1) if args.loss == "CE" else nn.Identity())
         self.dropout = dropout
         self.prop = prop
         self.args = args
@@ -114,8 +115,7 @@ class ALTOPT(torch.nn.Module):
         self.FF = None
         self.mlp = None
         self.useGCN = args.useGCN
-        self.gcn = GCN(in_channels, hidden_channels, out_channels, dropout, 2)
-        self.output = nn.LogSoftmax(dim=-1) if args.loss == "CE" else nn.Identity()
+        self.gcn = GCN(in_channels, hidden_channels, out_channels, dropout, 2, args)
 
     def reset_parameters(self):
         '''
@@ -154,7 +154,6 @@ class ALTOPT(torch.nn.Module):
             # x, adj_t = data.x, data.adj_t
             x = self.x
             x = self.lins(x)
-        x = self.output(x)
 
         if not self.training:
             self.mlp = x.clone().detach()

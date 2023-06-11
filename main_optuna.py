@@ -16,6 +16,7 @@ from myutil import sort_trials
 def parse_args():
     parser = argparse.ArgumentParser(description='ALTOPT')
     parser.add_argument('--seed', type=int, default=12321312)
+    parser.add_argument('--test', action="store_true")
     parser.add_argument('--log_steps', type=int, default=0)
     parser.add_argument('--dataset', type=str, default='Cora')
     parser.add_argument('--epochs', type=int, default=500)
@@ -73,10 +74,10 @@ def parse_args():
     args.ogb = True if 'ogb' in args.dataset.lower() else False
     return args
 
-def objective(trial):
+def objective(trial=None):
     args = parse_args()
-    args = set_up_trial(trial, args)
-    print(args)
+    if trial is not None:
+        args = set_up_trial(trial, args)
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -161,7 +162,7 @@ def objective(trial):
             args.current_epoch = 0
             if args.model in ['ALTOPT', "EXACT", "AGD"]:
                 for i in range(args.gnnepoch):
-                    loss = train_altopt(model, data, train_idx, optimizer, args=args)
+                    loss = train(model, data, train_idx, optimizer, args=args) #train_altopt(model, data, train_idx, optimizer, args=args)
                 #result = test(model, data, split_idx, args=args)
                 #print('vanilla GNN test_result', result)
                 args.current_epoch = 1
@@ -169,6 +170,7 @@ def objective(trial):
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
                 if args.model in ['ALTOPT', "EXACT", "AGD"]:
+                    loss = 0
                     model.propagate_update(data, K=args.K)
                     for ii in range(args.loop):
                         loss = train_altopt(model, data, train_idx, optimizer, args=args)
@@ -253,15 +255,8 @@ def set_up_trial(trial: optuna.Trial, args):
     args.weight_decay     = trial.suggest_float('weight_decay', 1e-6, 1e-1, log=True)
     args.dropout     = trial.suggest_float('dropout', 0, 0.9, step=0.1)
     args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
-    args.K = trial.suggest_int("K", 1, 10)
-    args.lambda1 = trial.suggest_uniform('lambda1', 0, 1)
-    args.lambda2 = trial.suggest_uniform('lambda2', 0, 10)
     
-    if args.model == 'GCN':
-        pass
-    elif args.model == 'GAT':
-        pass
-    elif args.model == 'LP':
+    if args.model == 'LP':
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
     elif args.model in ['APPNP', 'IAPPNP', 'MLP']:
         args.alpha     = trial.suggest_uniform('alpha', 0, 1.00001)
@@ -269,18 +264,16 @@ def set_up_trial(trial: optuna.Trial, args):
         args.K = trial.suggest_uniform('K', 0, 1000)
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT", "AGD"]:
-        
-        
-        if True:    
-            args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
-            print('lambda1: ', args.lambda1)
-            print('lambda2: ', args.lambda2)
-            args.loop = trial.suggest_uniform('loop', 0, 10)
-
-        elif args.prop == 'CP':
-            args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
-
-        args.K = trial.suggest_uniform('K', 0, 1000)
+        args.alpha = trial.suggest_float('alpha', 0, 1.00001, step=0.05)
+        args.loop = trial.suggest_int('loop', 0, 2)
+        args.K = trial.suggest_int("K", 1, 10)
+        args.lambda1 = trial.suggest_float('lambda1', 0, 1, step=0.05)
+        args.lambda2 = trial.suggest_float('lambda2', 0, 10)
+        args.useGCN = trial.suggest_categorical("useGCN", [True, False])
+        args.softmaxF = trial.suggest_categorical("softmaxF", [True, False])
+        args.Fwd     = trial.suggest_float('Fwd', 1e-6, 1e-1, log=True)
+        args.gnnepoch = trial.suggest_int("gnnepoch", 0, 120, step=10)
+        args.weightedloss = trial.suggest_categorical("weightedloss", [True, False])
     
     elif args.model in ['MFGNN', 'MFGNN-Hidden']:
         args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
@@ -300,211 +293,43 @@ def set_up_trial(trial: optuna.Trial, args):
     print('dropout: ', args.dropout)
     return args
 
-def set_up_search_space(args):
-    dropout_range = [args.dropout]
-    lr_range = [args.lr]
-    wd_range = [args.weight_decay]
-    alpha_range = [args.alpha]
-    lambda1_range = [args.lambda1]
-    lambda2_range = [args.lambda2]
-    K_range = [args.K]
-    loop = [args.loop]
-    num_correct_layer_range = [args.num_correct_layer]
-    correct_alpha_range = [args.correct_alpha]
-    num_smooth_layer_range = [args.num_smooth_layer]
-    smooth_alpha_range = [args.smooth_alpha]
-    pro_alpha_range = [args.pro_alpha]
-    if args.loss is None:
-        loss_range = ["CE", "MSE"]
-    else:
-        loss_range = [args.loss]
-    if args.loop is None:
-        loop = [1]
-    if args.dropout is None:
-        dropout_range = [0.5, 0.8]
-
-    if args.lr is None:
-        lr_range = [0.1, 0.01, 0.05, 0.001, 0.0005, 0.0001]
-
-    if args.weight_decay is None:
-        wd_range = [5e-3, 5e-4, 5e-5]
-        wd_range = [5e-4, 5e-5]
-
-    if args.model == 'LP':
-        if args.alpha is None:
-            alpha_range = [0.7, 0.8, 0.9, 1, 1.1]
-
-    if args.model == 'APPNP' or args.prop == 'APPNP' or args.model == 'IAPPNP' or args.model == 'MLP':
-        if args.alpha is None:
-            alpha_range = [0, 0.05, 0.1, 0.15] 
-            alpha_range = [0, 0.1, 0.2]
-            if 'adv' in args.dataset:
-                alpha_range = [0, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0]
-        if args.pro_alpha is None:
-            pro_alpha_range = [0, 0.1, 0.3, 0.8, 1, 1.5, 2]
-        if args.K is None:
-            K_range = [5, 10]
-
-    if args.model in ['ElasticGNN'] and args.prop == 'EMP':
-        range_list = [0, 3, 6, 9, 15]
-        if args.lambda1 is None:
-            lambda1_range = range_list
-        
-        if args.lambda2 is None:
-            lambda2_range = range_list
-
-        if args.lambda1 is None and args.lambda2 is None:
-            range_list = [0, 3, 6, 9] ## L1+L2
-            lambda1_range = range_list
-            lambda2_range = range_list
-
-        if args.K is None:
-            K_range = [5, 10]
-            # K_range = [1, 3, 5, 7, 10]
-            # K_range = [0, 2, 4, 6, 8, 10, 12]
-    
-    if args.model in ['MFGNN', 'MFGNN-Hidden']:
-        # range_list = [0, 3, 6, 9, 15]
-        range_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-        if args.lambda1 is None:
-            lambda1_range = range_list
-
-        if args.K is None:
-            K_range = [5, 10]
-
-
-    if args.model in ['ElasticGNN'] and args.prop == 'CP':
-        if args.alpha is None:
-            alpha_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-
-    if args.model in ['ALTOPT', "AGD"]:
-        range_list = [0.01, 0.02, 0.05, 0.1, 0.2]
-
-        if args.lambda1 is None:
-            lambda1_range = range_list
-        
-        if args.lambda2 is None:
-            lambda2_range = [0, 0.01, 0.05, 0.1, 0.2, 0.3]
-
-        if args.lambda1 is None and args.lambda2 is None:
-            range_list = [0.01, 0.1, 0.4, 0.5, 0.6, 0.8]
-
-            lambda1_range = [0.1, 0.3, 0.5, 1]
-            lambda2_range = [1, 3, 5, 10]
-        if args.alpha is None:
-            alpha_range = [0.3, 0.5, 0.7, 0.9]
-        if args.K is None:
-            K_range = [1, 5, 10, 20, 50]
-        if args.loop is None:
-            loop = [1, 5, 10]
-
-    if args.model in ['EXACT']:
-        range_list = [0.01, 0.02, 0.05, 0.1, 0.2]
-
-        if args.lambda1 is None:
-            lambda1_range = range_list
-        
-        if args.lambda2 is None:
-            lambda2_range = [0, 0.01, 0.05, 0.1, 0.2, 0.3]
-
-        if args.lambda1 is None and args.lambda2 is None:
-            range_list = [0.01, 0.1, 0.4, 0.5, 0.6, 0.8]
-            lambda1_range = [0.1, 0.3, 0.5, 1]
-            lambda2_range = [1, 3, 5, 10]
-        if args.alpha is None:
-            alpha_range = [0]
-        K_range = [10]
-        if args.loop is None:
-            loop = [1, 5, 10]
-
-    if args.model in ['ORTGNN']:
-        alpha_range = [0]
-        range_list = [0.01, 0.02, 0.05, 0.1, 0.2]
-
-        if args.lambda1 is None:
-            lambda1_range = range_list
-
-        if args.lambda2 is None:
-            lambda2_range = [1, 5, 10]
-
-        if args.lambda1 is None and args.lambda2 is None:
-            range_list = [0.01, 0.1, 0.5]
-
-            lambda1_range = [0.5, 1, 5]
-            lambda2_range = range_list
-
-        if args.K is None:
-            K_range = [1, 5, 10]
-
-    if args.model in ['CS']:
-        if args.num_correct_layer is None:
-            num_correct_layer_range = [20, 50]
-        if args.correct_alpha is None:
-            correct_alpha_range = [1, 0.9, 0.5, 0.3, 0.1, 0]
-        if args.num_smooth_layer is None:
-            num_smooth_layer_range = [20, 50]
-        if args.smooth_alpha is None:
-            smooth_alpha_range = [0.8, 0.6, 0.3, 0.1, 0]
-        if args.alpha is None:
-            alpha_range = [0, 0.1, 0.3, 0.5, 0.8, 0.9, 1]
-
-    search_space = {"lr": lr_range, 
-                    "weight_decay": wd_range, 
-                    "lambda1": lambda1_range,
-                    "lambda2": lambda2_range, 
-                    "alpha": alpha_range, 
-                    "dropout": dropout_range,
-                    "K": K_range,
-                    'loop': loop,
-                    "num_correct_layer": num_correct_layer_range,
-                    "correct_alpha": correct_alpha_range,
-                    "num_smooth_layer": num_smooth_layer_range,
-                    "smooth_alpha": smooth_alpha_range,
-                    "pro_alpha": pro_alpha_range,
-                    "loss": loss_range
-                    }
-    return search_space
 
 if __name__ == "__main__":
     optuna_total_start = time.perf_counter()
 
     args = parse_args()
-    print('main: ', args)
-    search_space = set_up_search_space(args)
-    print('search_space: ', search_space)
-    num_trial = 1
-    for s in search_space.values():
-        num_trial = 1000 #min(len(s) * num_trial, 100)
-    print('num_trial: ', num_trial)
-    study = optuna.create_study(direction="maximize")
+    if args.test:
+        objective()
+    else:
+        study = optuna.create_study(storage=f"sqlite:///reform/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize")
 
-    study.optimize(objective, n_trials=num_trial)
+        study.optimize(objective, n_trials=10000)
 
-    pruned_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
-    complete_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-    print("Study statistics: ")
-    print("  Number of finished trials: ", len(study.trials))
-    print("  Number of pruned trials: ", len(pruned_trials))
-    print("  Number of complete trials: ", len(complete_trials))
+        pruned_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
+        complete_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+        print("Study statistics: ")
+        print("  Number of finished trials: ", len(study.trials))
+        print("  Number of pruned trials: ", len(pruned_trials))
+        print("  Number of complete trials: ", len(complete_trials))
 
-    sorted_trial = sort_trials(study.trials, key=args.sort_key)
+        sorted_trial = sort_trials(study.trials, key=args.sort_key)
 
-    for trial in sorted_trial:
-        print("trial.params: ", trial.params, 
-              "  trial.value: ", '{0:.5g}'.format(trial.value),
-              "  ", trial.user_attrs)
+        for trial in sorted_trial:
+            print("trial.params: ", trial.params, 
+                "  trial.value: ", '{0:.5g}'.format(trial.value),
+                "  ", trial.user_attrs)
 
-    test_acc = []
-    for trial in sorted_trial:
-        test_acc.append(trial.user_attrs['test'])
-    print('test_acc')
-    print(test_acc)
+        test_acc = []
+        for trial in sorted_trial:
+            test_acc.append(trial.user_attrs['test'])
+        print('test_acc')
+        print(test_acc)
 
-    print("Best params:", study.best_params)
-    print("Best trial Value: ", study.best_trial.value)
-    print("Best trial Acc: ", study.best_trial.user_attrs)
+        print("Best params:", study.best_params)
+        print("Best trial Value: ", study.best_trial.value)
+        print("Best trial Acc: ", study.best_trial.user_attrs)
 
-    optuna_total_end = time.perf_counter()
-    optuna_total_duration = optuna_total_end - optuna_total_start
-    print('optuna total time: ', optuna_total_duration)
+        optuna_total_end = time.perf_counter()
+        optuna_total_duration = optuna_total_end - optuna_total_start
+        print('optuna total time: ', optuna_total_duration)
 
