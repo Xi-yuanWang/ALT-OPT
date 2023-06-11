@@ -53,7 +53,7 @@ class MLP(torch.nn.Module):
 
 
 class GCN(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, dropout, num_layers, **kwargs):
+    def __init__(self, in_channels, hidden_channels, out_channels, dropout, num_layers, args, **kwargs):
         super(GCN, self).__init__()
         self.convs = torch.nn.ModuleList()
         self.convs.append(GCNConv(in_channels, hidden_channels))
@@ -64,6 +64,7 @@ class GCN(torch.nn.Module):
             self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
         self.convs.append(GCNConv(hidden_channels, out_channels))
         self.dropout = dropout
+        self.output = torch.nn.LogSoftmax(dim=-1) if args.loss == "CE" else torch.nn.Identity()
 
     def reset_parameters(self):
         for conv in self.convs:
@@ -79,7 +80,7 @@ class GCN(torch.nn.Module):
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
-        return F.log_softmax(x, dim=1)
+        return self.output(x)
 
 
 # class ChebNet(torch.nn.Module):

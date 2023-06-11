@@ -32,7 +32,7 @@ def get_model(args, dataset, all_features):
                      hidden_channels=args.hidden_channels,
                      out_channels=dataset.num_classes, 
                      dropout=args.dropout,
-                     num_layers=args.num_layers).cuda()
+                     num_layers=args.num_layers, args=args).cuda()
 
     # elif args.model == 'Cheb':
     #     model = ChebNet(in_channels=data.num_features, 

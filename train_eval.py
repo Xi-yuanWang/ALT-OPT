@@ -109,7 +109,7 @@ def train(model, data, train_idx, optimizer, args=None):
         label = torch.zeros_like(out) 
         label[range(y.shape[0]), y] = 1
         # import ipdb; ipdb.set_trace()
-        loss = torch.pow(torch.norm(out-label), 2)
+        loss = torch.sum(torch.square(out-label))
     # print('####### training loss: ', loss)
     loss.backward()
     # print('loss: ', loss)
