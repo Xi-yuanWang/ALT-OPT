@@ -42,21 +42,18 @@ def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optim
                 value, indices = torch.topk(tweight, num)
                 total_weight[indices] = value
         else:
-            tlabel = F.softmax(label/args.temperature, dim=-1)
-            weight = 1 - torch.sum(-tlabel * torch.log(tlabel.clamp(min=1e-8)), 1) / math.log(args.num_class)
-            index = label.argmax(dim=1)
-            for i in range(args.num_class):
-                tweight = weight.clone()
-                pos = (index == i)
-                tweight[~pos] = 0
-                tweight[train_mask] = 0
-                value, indices = torch.topk(tweight, num)
-                total_weight[indices] = value
+            total_weight.fill_(1)
     if args.loss == "MSE":
-        diff = out - label
+        if args.softmaxF:
+            diff = torch.square(out - F.softmax(label/args.temperature, dim=-1))
+        else:
+            diff = torch.square(out - label)
     elif args.loss == "CE":
-        diff = - label * out
-    diff = torch.sum(diff * diff, 1) 
+        if args.softmaxF:
+            diff = - F.softmax(label/args.temperature, dim=-1) * out # - label * out  
+        else:
+            diff = - label * out
+    diff = torch.sum(diff, 1) 
     loss = torch.sum(total_weight * diff)
     loss.backward()
     optimizer.step()

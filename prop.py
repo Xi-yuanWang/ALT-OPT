@@ -118,6 +118,7 @@ class Propagation(MessagePassing):
     def apt_forward(self, mlp, FF, edge_index, K, alpha, data):
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
+        wd = self.args.Fwd
         if not torch.is_tensor(self.label):
             self.label = self.init_label(data)
             print('init label')
@@ -127,8 +128,8 @@ class Propagation(MessagePassing):
         for k in range(K):
             AF = self.propagate(edge_index, x=FF, edge_weight=None, size=None)
             if self.args.loss == 'CE':
-                FF[mask] = lambda1/(2*(1+lambda2)) * mlp[mask] + 1/(1+lambda2) * AF[mask] + lambda2/(1+lambda2)*label[mask]
-                FF[~mask] = lambda1/2 * mlp[~mask] + AF[~mask]
+                FF[mask] = lambda1/(2*(1+lambda2)) * mlp[mask] + 1/(1+lambda2) * AF[mask] + lambda2/(1+lambda2)*label[mask] - wd*FF[mask]
+                FF[~mask] = lambda1/2 * mlp[~mask] + AF[~mask] - wd*FF[~mask]
             else:
                 FF[mask] = 1/(lambda1+lambda2+1) * AF[mask] + lambda1/(lambda1+lambda2+1) * mlp[mask] + lambda2/(lambda1+lambda2+1) * label[mask]  ## for labeled nodes
                 FF[~mask] = 1/(lambda1+1) * AF[~mask] + lambda1/(lambda1+1) * mlp[~mask] ## for unlabeled nodes

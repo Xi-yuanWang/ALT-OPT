@@ -75,7 +75,7 @@ class Logger(object):
             print(f'   Final Test: {result[argmax, 2]:.2f}')
         else:
             # import ipdb; ipdb.set_trace()
-            result = 100 * torch.tensor(self.results)
+            result = [100 * torch.tensor(r) for r in self.results]
 
             best_results = []
             for r in result:
@@ -101,7 +101,7 @@ class Logger(object):
 
     def best_result(self, run=None, with_var=False):
         if run is not None:
-            result = 100 * torch.tensor(self.results[run])
+            result = 100 * torch.tensor(self.results)
             argmax = result[:, 1].argmax().item()
             train1 = result[:, 0].max()
             valid  = result[:, 1].max()
@@ -109,7 +109,7 @@ class Logger(object):
             test   = result[argmax, 2]
             return (train1, valid, train2, test)
         else:
-            result = 100 * torch.tensor(self.results)
+            result = [100 * torch.tensor(r) for r in self.results]
 
             best_results = []
             for r in result:

@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument('--log_steps', type=int, default=0)
     parser.add_argument('--dataset', type=str, default='Cora')
     parser.add_argument('--epochs', type=int, default=500)
+    parser.add_argument('--gnnepoch', type=int, default=100)
     parser.add_argument('--runs', type=int, default=3)
     parser.add_argument('--normalize_features', type=str2bool, default=True, help="whether to normalize node feature")
     parser.add_argument('--random_splits', type=int, default=0, help='default use fix split')
@@ -28,6 +29,8 @@ def parse_args():
     parser.add_argument('--hidden_channels', type=int, default=64)
     parser.add_argument('--dropout', type=float, default=None)
     parser.add_argument('--weight_decay', type=float, default=None)
+    parser.add_argument('--Fwd', type=float, default=None)
+    parser.add_argument('--earlystop', type=int, default=10)
     parser.add_argument('--lr', type=float, default=None)
 
     parser.add_argument('--prop', type=str, default='EMP') # useless
@@ -150,18 +153,17 @@ def objective(trial):
             data.f = None
             runs_overall = split * args.runs + run
             model.reset_parameters()
-            optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+            optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
             t_start = time.perf_counter()
             best_acc = 0
             y_soft = None
-
+            nic_step = 0
             args.current_epoch = 0
             if args.model in ['ALTOPT', "EXACT", "AGD"]:
-                for i in range(100):
+                for i in range(args.gnnepoch):
                     loss = train_altopt(model, data, train_idx, optimizer, args=args)
-
-                result = test(model, data, split_idx, args=args)
-                print('test_result', result)
+                #result = test(model, data, split_idx, args=args)
+                #print('vanilla GNN test_result', result)
                 args.current_epoch = 1
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
@@ -186,7 +188,6 @@ def objective(trial):
 
                 if args.model != 'CS':
                     logger.add_result(runs_overall, result)
-                    
                 if args.log_steps > 0:
                     if epoch % args.log_steps == 0:
                         train_acc, valid_acc, test_acc = result
@@ -197,6 +198,14 @@ def objective(trial):
                               f'Train: {100 * train_acc:.2f}%, '
                               f'Valid: {100 * valid_acc:.2f}% '
                               f'Test: {100 * test_acc:.2f}%')
+                train_acc, valid_acc, test_acc = result
+                nic_step += 1
+                if best_acc <= valid_acc:
+                    nic_step = 0
+                    best_acc = valid_acc
+                # print(nic_step, best_acc)
+                if nic_step > args.earlystop:
+                    break
             if args.model == 'CS':
                 print('best_acc', best_acc)
                 # adj_t = data.adj_t.to(device)
@@ -260,7 +269,7 @@ def set_up_trial(trial: optuna.Trial, args):
         if True:
             args.lambda1 = trial.suggest_uniform('lambda1', 0, 1)
             args.lambda2 = trial.suggest_uniform('lambda2', 0, 10)
-            args.alpha = 0 #trial.suggest_uniform('alpha', 0, 1.00001)
+            args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
             print('lambda1: ', args.lambda1)
             print('lambda2: ', args.lambda2)
             args.loop = trial.suggest_uniform('loop', 0, 10)
