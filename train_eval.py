@@ -54,7 +54,7 @@ def train_altopt(model: nn.Module, data: PygData, train_idx: torch.Tensor, optim
         else:
             diff = - label * out
     diff = torch.sum(diff, 1) 
-    loss = torch.sum(total_weight * diff)
+    loss = torch.sum(total_weight * diff)/torch.sum(total_weight)
     loss.backward()
     optimizer.step()
     return loss.item()
@@ -109,7 +109,7 @@ def train(model, data, train_idx, optimizer, args=None):
         label = torch.zeros_like(out) 
         label[range(y.shape[0]), y] = 1
         # import ipdb; ipdb.set_trace()
-        loss = torch.pow(torch.norm(out-label), 2)
+        loss = torch.sum(torch.square(out-label))
     # print('####### training loss: ', loss)
     loss.backward()
     # print('loss: ', loss)
