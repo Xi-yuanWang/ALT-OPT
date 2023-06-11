@@ -165,6 +165,7 @@ def objective(trial):
                 #result = test(model, data, split_idx, args=args)
                 #print('vanilla GNN test_result', result)
                 args.current_epoch = 1
+            optimizer
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
                 if args.model in ['ALTOPT', "EXACT", "AGD"]:
@@ -248,12 +249,14 @@ def objective(trial):
     return valid_acc
 
 def set_up_trial(trial: optuna.Trial, args):
-    args.lr     = trial.suggest_uniform('lr', 0, 1)
-    args.weight_decay     = trial.suggest_uniform('weight_decay', 0, 1)
-    args.dropout     = trial.suggest_uniform('dropout', 0, 1)
-    if args.loss is None:
-        args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
-
+    args.lr     = trial.suggest_float('lr', 1e-4, 1e-2, log=True)
+    args.weight_decay     = trial.suggest_float('weight_decay', 1e-6, 1e-1, log=True)
+    args.dropout     = trial.suggest_float('dropout', 0, 0.9, step=0.1)
+    args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
+    args.K = trial.suggest_int("K", 1, 10)
+    args.lambda1 = trial.suggest_uniform('lambda1', 0, 1)
+    args.lambda2 = trial.suggest_uniform('lambda2', 0, 10)
+    
     if args.model == 'GCN':
         pass
     elif args.model == 'GAT':
@@ -266,9 +269,9 @@ def set_up_trial(trial: optuna.Trial, args):
         args.K = trial.suggest_uniform('K', 0, 1000)
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT", "AGD"]:
-        if True:
-            args.lambda1 = trial.suggest_uniform('lambda1', 0, 1)
-            args.lambda2 = trial.suggest_uniform('lambda2', 0, 10)
+        
+        
+        if True:    
             args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
             print('lambda1: ', args.lambda1)
             print('lambda2: ', args.lambda2)
@@ -471,9 +474,9 @@ if __name__ == "__main__":
     print('search_space: ', search_space)
     num_trial = 1
     for s in search_space.values():
-        num_trial = len(s) * num_trial
+        num_trial = 1000 #min(len(s) * num_trial, 100)
     print('num_trial: ', num_trial)
-    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.GridSampler(search_space))
+    study = optuna.create_study(direction="maximize")
 
     study.optimize(objective, n_trials=num_trial)
 
