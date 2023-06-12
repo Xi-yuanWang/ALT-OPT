@@ -35,6 +35,8 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=None)
 
     parser.add_argument('--prop', type=str, default='EMP') # useless
+    parser.add_argument('--bn', action="store_true") # number of propagation
+    parser.add_argument('--K0', type=int, default=None) # number of propagation
     parser.add_argument('--K', type=int, default=None) # number of propagation
     parser.add_argument('--gamma', type=float, default=None) # used in EMP prop
     parser.add_argument('--lambda1', type=float, default=None)
@@ -72,6 +74,8 @@ def parse_args():
 
     args = parser.parse_args()
     args.ogb = True if 'ogb' in args.dataset.lower() else False
+    if args.K0 is None:
+        args.K0 = args.K
     return args
 
 def objective(trial=None):
@@ -143,7 +147,7 @@ def objective(trial=None):
 
         model.reset_parameters()
         if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', "AGD", "EXACT", 'APPNP', 'MLP', 'CS']:
-            model.propagate(data)
+            model.propagate(data, args.K0)
             print('propagate done')
 
         for run in range(args.runs):
@@ -167,7 +171,6 @@ def objective(trial=None):
                 # result = test(model, data, split_idx, args=args)
                 # print('vanilla GNN test_result', result)
                 args.current_epoch = 1
-            optimizer
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
                 if args.model in ['ALTOPT', "EXACT", "AGD"]:
@@ -269,13 +272,15 @@ def set_up_trial(trial: optuna.Trial, args):
         args.alpha = trial.suggest_float('alpha', 0, 1.00001, step=0.05)
         args.loop = trial.suggest_int('loop', 0, 2)
         args.K = trial.suggest_int("K", 1, 10)
-        args.lambda1 = trial.suggest_float('lambda1', 0, 1, step=0.05)
+        args.K0 = trial.suggest_int("K0", 1, 10)
+        args.lambda1 = trial.suggest_float('lambda1', 0, 2, step=0.01)
         args.lambda2 = trial.suggest_float('lambda2', 0, 10)
         args.useGCN = trial.suggest_categorical("useGCN", [True, False])
         args.softmaxF = trial.suggest_categorical("softmaxF", [True, False])
         args.Fwd     = trial.suggest_float('Fwd', 1e-6, 1e-1, log=True)
         args.gnnepoch = trial.suggest_int("gnnepoch", 0, 120, step=10)
         args.weightedloss = trial.suggest_categorical("weightedloss", [True, False])
+        args.temperature = trial.suggest_float("temperature", 0.01, 10, log=True)
     
     elif args.model in ['MFGNN', 'MFGNN-Hidden']:
         args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
@@ -303,7 +308,7 @@ if __name__ == "__main__":
     if args.test:
         objective()
     else:
-        study = optuna.create_study(storage=f"sqlite:///reform/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize")
+        study = optuna.create_study(storage=f"sqlite:///reform/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize",  load_if_exists=True)
 
         study.optimize(objective, n_trials=1500)
 

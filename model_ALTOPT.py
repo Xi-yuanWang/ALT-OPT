@@ -130,9 +130,9 @@ class ALTOPT(torch.nn.Module):
         self.FF = None
 
 
-    def propagate(self, data):
+    def propagate(self, data, K=None):
         x, adj_t, = data.x, data.adj_t
-        self.x = self.prop(x, adj_t, data=data, mode='CS')
+        self.x = self.prop(x, adj_t, data=data, mode='CS', K=K)
         if self.FF is None:
             self.FF = self.prop.init_label(data)
 
