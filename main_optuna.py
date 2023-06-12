@@ -303,7 +303,7 @@ if __name__ == "__main__":
     else:
         study = optuna.create_study(storage=f"sqlite:///reform/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize")
 
-        study.optimize(objective, n_trials=10000)
+        study.optimize(objective, n_trials=1500)
 
         pruned_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED]
         complete_trials = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]

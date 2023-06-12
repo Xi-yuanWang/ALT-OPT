@@ -93,7 +93,6 @@ def test_altopt(model, data, split_idx, args=None):
 def train(model, data, train_idx, optimizer, args=None):
     # print('train')
     model.train()
-    torch.autograd.set_detect_anomaly(True) ## to locate error of NaN
     optimizer.zero_grad()
     out = model(data=data)[train_idx]
     
@@ -162,7 +161,7 @@ def test(model, data, split_idx, args=None):
 def train_appnp(model, data, train_idx, optimizer, args=None):
     # print('train')
     model.train()
-    torch.autograd.set_detect_anomaly(True)  ## to locate error of NaN
+    # torch.autograd.set_detect_anomaly(True)  ## to locate error of NaN
     optimizer.zero_grad()
     out, loss1 = model(data=data)
     out = out[train_idx]
