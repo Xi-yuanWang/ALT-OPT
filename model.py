@@ -58,13 +58,23 @@ class GCN(torch.nn.Module):
         self.convs = torch.nn.ModuleList()
         self.convs.append(GCNConv(in_channels, hidden_channels))
         self.bns = torch.nn.ModuleList()
-        self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.bns.append(
+            torch.nn.Sequential(torch.nn.BatchNorm1d(hidden_channels) if args.bn else torch.nn.Identity(),
+                                torch.nn.Dropout(dropout, inplace=True),
+                                torch.nn.ReLU(inplace=True))
+        )
         for _ in range(num_layers - 2):
             self.convs.append(GCNConv(hidden_channels, hidden_channels))
-            self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+            self.bns.append(
+                torch.nn.Sequential(torch.nn.BatchNorm1d(hidden_channels) if args.bn else torch.nn.Identity(),
+                                    torch.nn.Dropout(dropout, inplace=True),
+                                    torch.nn.ReLU(inplace=True))
+            )
         self.convs.append(GCNConv(hidden_channels, out_channels))
         self.dropout = dropout
-        self.output = torch.nn.LogSoftmax(dim=-1) if args.loss == "CE" else torch.nn.Identity()
+        self.output = torch.nn.Sequential(torch.nn.LayerNorm(hidden_channels) if args.tailln else torch.nn.Identity())
+        if args.loss == "CE":
+            self.output.append(torch.nn.LogSoftmax(dim=-1))
 
     def reset_parameters(self):
         for conv in self.convs:
@@ -76,7 +86,7 @@ class GCN(torch.nn.Module):
         x, adj_t, = data.x, data.adj_t
         for i, conv in enumerate(self.convs[:-1]):
             x = conv(x, adj_t)
-            # x = self.bns[i](x)
+            x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
@@ -195,10 +205,10 @@ class APPNP(torch.nn.Module):
         self.lins = torch.nn.ModuleList()
         self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
         self.bns = torch.nn.ModuleList()
-        self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.bns.append(torch.nn.BatchNorm1d(hidden_channels) if args.bn else torch.nn.Identity())
         for _ in range(num_layers - 2):
             self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
-            self.bns.append(torch.nn.BatchNorm1d(hidden_channels))
+            self.bns.append(torch.nn.BatchNorm1d(hidden_channels) if args.bn else torch.nn.Identity())
         self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
         self.dropout = dropout
         self.prop = prop
@@ -221,7 +231,7 @@ class APPNP(torch.nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         for i, lin in enumerate(self.lins[:-1]):
             x = lin(x)
-            # x = self.bns[i](x)
+            x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)

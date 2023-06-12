@@ -97,16 +97,28 @@ class ALTOPT(torch.nn.Module):
         num_layers = args.num_layers
         self.hidden_channels = hidden_channels
         self.lins = Sequential()
-        self.lins.append(Linear(in_channels, hidden_channels))
-        self.lins.append(nn.BatchNorm1d(hidden_channels))
-        self.lins.append(nn.Dropout(dropout, inplace=True))
-        self.lins.append(nn.ReLU(inplace=True))
-        for _ in range(num_layers - 2):
-            self.lins.append(Linear(hidden_channels, hidden_channels))
-            self.lins.append(nn.BatchNorm1d(hidden_channels))
+        self.lins.append(nn.Dropout(dropout))
+        if num_layers > 1:
+            self.lins.append(Linear(in_channels, hidden_channels))
+            if args.bn:
+                self.lins.append(nn.BatchNorm1d(hidden_channels))
             self.lins.append(nn.Dropout(dropout, inplace=True))
             self.lins.append(nn.ReLU(inplace=True))
-        self.lins.append(nn.Linear(hidden_channels, out_channels))
+            for _ in range(num_layers - 2):
+                self.lins.append(Linear(hidden_channels, hidden_channels))
+                if args.bn:
+                    self.lins.append(nn.BatchNorm1d(hidden_channels))
+                self.lins.append(nn.Dropout(dropout, inplace=True))
+                self.lins.append(nn.ReLU(inplace=True))
+            self.lins.append(nn.Linear(hidden_channels, out_channels))
+        else:
+            self.lins.append(nn.Linear(in_channels, out_channels))
+            if args.bn:
+                self.lins.append(nn.BatchNorm1d(hidden_channels))
+        if args.tailln:
+            self.lins.append(torch.nn.LayerNorm(hidden_channels, elementwise_affine=False))
+        if args.loss == "CE":
+            self.output.append(torch.nn.LogSoftmax(dim=-1))
         self.lins.append(nn.LogSoftmax(dim=-1) if args.loss == "CE" else nn.Identity())
         self.dropout = dropout
         self.prop = prop

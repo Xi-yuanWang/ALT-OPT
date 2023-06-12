@@ -36,6 +36,7 @@ def parse_args():
 
     parser.add_argument('--prop', type=str, default='EMP') # useless
     parser.add_argument('--bn', action="store_true") # number of propagation
+    parser.add_argument('--tailln', action="store_true") # number of propagation
     parser.add_argument('--K0', type=int, default=None) # number of propagation
     parser.add_argument('--K', type=int, default=None) # number of propagation
     parser.add_argument('--gamma', type=float, default=None) # used in EMP prop
@@ -258,9 +259,10 @@ def objective(trial=None):
 def set_up_trial(trial: optuna.Trial, args):
     args.lr     = trial.suggest_float('lr', 1e-4, 1e-2, log=True)
     args.weight_decay     = trial.suggest_float('weight_decay', 1e-6, 1e-1, log=True)
-    args.dropout     = trial.suggest_float('dropout', 0, 0.9, step=0.1)
+    args.dropout     = trial.suggest_float('dropout', 0, 0.95, step=0.05)
     args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
-    
+    args.hidden_channels = trial.suggest_int("hidden_channels", 16, 64, step=16)
+    args.num_layers = trial.suggest_int("num_layers", 1, 2)
     if args.model == 'LP':
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
     elif args.model in ['APPNP', 'IAPPNP', 'MLP']:
@@ -270,7 +272,7 @@ def set_up_trial(trial: optuna.Trial, args):
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT", "AGD"]:
         args.alpha = trial.suggest_float('alpha', 0, 1.00001, step=0.05)
-        args.loop = trial.suggest_int('loop', 0, 2)
+        args.loop = trial.suggest_int('loop', 0, 1)
         args.K = trial.suggest_int("K", 1, 10)
         args.K0 = trial.suggest_int("K0", 1, 10)
         args.lambda1 = trial.suggest_float('lambda1', 0, 2, step=0.01)
