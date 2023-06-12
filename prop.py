@@ -70,7 +70,9 @@ class Propagation(MessagePassing):
                 data=None,
                 FF=None,
                 mode=None,
-                post_step=None, alpha=None) -> Tensor:
+                post_step=None, alpha=None, K=None) -> Tensor:
+        if K is None:
+            K = self.K
         if self.K <= 0: return x
 
         assert isinstance(edge_index, SparseTensor), "Only support SparseTensor now"
@@ -91,18 +93,18 @@ class Propagation(MessagePassing):
             alpha = self.alpha
 
         if mode == 'APPNP':
-            x = self.appnp_forward(x=x, hh=hh, edge_index=edge_index, K=self.K, alpha=alpha)
+            x = self.appnp_forward(x=x, hh=hh, edge_index=edge_index, K=K, alpha=alpha)
         elif mode == 'ALTOPT':
-            x = self.apt_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
+            x = self.apt_forward(mlp=x, FF=FF, edge_index=edge_index, K=K, alpha=alpha, data=data)
         elif mode == 'CS':
-            x = self.label_forward(x=x, edge_index=edge_index, K=self.K, alpha=alpha, post_step=post_step,
+            x = self.label_forward(x=x, edge_index=edge_index, K=K, alpha=alpha, post_step=post_step,
                                    edge_weight=edge_weight)
         elif mode == 'ORTGNN':
-            x = self.ort_forward(x=x, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
+            x = self.ort_forward(x=x, edge_index=edge_index, K=K, alpha=alpha, data=data)
         elif mode == "EXACT":
-            x = self.exact_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
+            x = self.exact_forward(mlp=x, FF=FF, edge_index=edge_index, K=K, alpha=alpha, data=data)
         elif mode == "AGD":
-            x = self.agd_forward(mlp=x, FF=FF, edge_index=edge_index, K=self.K, alpha=alpha, data=data)
+            x = self.agd_forward(mlp=x, FF=FF, edge_index=edge_index, K=K, alpha=alpha, data=data)
         else:
             raise ValueError('wrong propagate mode')
         return x
@@ -137,6 +139,7 @@ class Propagation(MessagePassing):
     
 
     def exact_forward(self, mlp, FF, edge_index: SparseTensor, K, alpha, data):
+        wd = self.args.Fwd
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
         onlyy = self.args.onlyy
@@ -158,10 +161,10 @@ class Propagation(MessagePassing):
             
             rowptr, col, val = cp.asarray(rowptr), cp.asarray(col), cp.asarray(val)
             if self.args.loss == 'CE':
-                diagterm = torch.ones(N, device=label.device)
+                diagterm = torch.ones(N, device=label.device) + wd
                 diagterm[mask] += lambda2
             else:
-                diagterm = torch.empty(N, device=label.device).fill_(lambda1+1)
+                diagterm = torch.empty(N, device=label.device).fill_(lambda1+1+wd)
                 diagterm[mask] += lambda2
             Leftmat = cpsp.csr_matrix((-val, col, rowptr), dtype=cp.float32, shape=(N, N))
             Leftmat.setdiag(cp.asarray(diagterm))
@@ -188,7 +191,7 @@ class Propagation(MessagePassing):
     def agd_forward(self, mlp, FF, edge_index: SparseTensor, K, alpha, data):
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
-        softmaxF = self.args.softmaxF
+        wd = self.args.Fwd
 
         if not torch.is_tensor(self.label):
             self.label = self.init_label(data)
@@ -210,10 +213,10 @@ class Propagation(MessagePassing):
         if getattr(data, "diagterm", None) is None:
             N = data.num_nodes
             if self.args.loss == 'CE':
-                diagterm = torch.empty(N, device=label.device).fill_(lambda1+2)
+                diagterm = torch.empty(N, device=label.device).fill_(lambda1+2+wd)
                 diagterm[mask] += lambda2
             else:
-                diagterm = torch.empty(N, device=label.device).fill_(2)
+                diagterm = torch.empty(N, device=label.device).fill_(2+wd)
                 diagterm[mask] += lambda2
             setattr(data, "diagterm", 1/diagterm.reshape(-1, 1))
 

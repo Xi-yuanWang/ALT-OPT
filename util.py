@@ -137,12 +137,13 @@ class Logger(object):
             r = best_result[:, 3]
             test = r.mean().item()
             test_var = f'{r.mean():.2f} ± {r.std():.2f}'
-
+            '''
             if r.shape[0] == 30:
                 r1 = r.reshape(10, 3)
                 v, _ = r1.max(dim=1)
                 v = v.mean().item()
                 print('best run test_acc:', v)
+            '''
             if with_var:
                 return (train1, valid, train2, test, train1_var, valid_var, train2_var, test_var)
             else:

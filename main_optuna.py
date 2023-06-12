@@ -162,9 +162,10 @@ def objective(trial=None):
             args.current_epoch = 0
             if args.model in ['ALTOPT', "EXACT", "AGD"]:
                 for i in range(args.gnnepoch):
-                    loss = train(model, data, train_idx, optimizer, args=args) #train_altopt(model, data, train_idx, optimizer, args=args)
-                #result = test(model, data, split_idx, args=args)
-                #print('vanilla GNN test_result', result)
+                    loss = train(model, data, train_idx, optimizer, args=args) #
+                # train_altopt(model, data, train_idx, optimizer, args=args) # 
+                # result = test(model, data, split_idx, args=args)
+                # print('vanilla GNN test_result', result)
                 args.current_epoch = 1
             optimizer
             for epoch in range(1, 1 + args.epochs):
@@ -244,9 +245,10 @@ def objective(trial=None):
     train1_acc, valid_acc, train2_acc, test_acc, \
     train1_var, valid_var, train2_var, test_var = logger.best_result(run=None, with_var=True) # to adjust
 
-    trial.set_user_attr("train", train2_var)
-    trial.set_user_attr("valid", valid_var)
-    trial.set_user_attr("test", test_var)
+    if trial is not None:
+        trial.set_user_attr("train", train2_var)
+        trial.set_user_attr("valid", valid_var)
+        trial.set_user_attr("test", test_var)
 
     return valid_acc
 
