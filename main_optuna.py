@@ -261,8 +261,12 @@ def set_up_trial(trial: optuna.Trial, args):
     args.weight_decay     = trial.suggest_float('weight_decay', 1e-6, 1e-1, log=True)
     args.dropout     = trial.suggest_float('dropout', 0, 0.95, step=0.05)
     args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
-    args.hidden_channels = trial.suggest_int("hidden_channels", 64, 64, step=16)
-    args.num_layers = trial.suggest_int("num_layers", 1, 2)
+    if args.ogb:
+        args.hidden_channels = trial.suggest_int("hidden_channels", 64, 256, step=64)
+        args.num_layers = trial.suggest_int("num_layers", 1, 3)
+    else:
+        args.hidden_channels = trial.suggest_int("hidden_channels", 64, 64, step=16)
+        args.num_layers = trial.suggest_int("num_layers", 1, 2)
     if args.model == 'LP':
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
     elif args.model in ['APPNP', 'IAPPNP', 'MLP']:
@@ -274,7 +278,7 @@ def set_up_trial(trial: optuna.Trial, args):
         args.alpha = trial.suggest_float('alpha', 0, 1.00001, step=0.05)
         args.loop = trial.suggest_int('loop', 1, 1)
         args.K = trial.suggest_int("K", 1, 3)
-        args.K0 = trial.suggest_int("K0", 1, 20)
+        args.K0 = trial.suggest_int("K0", 1, 30)
         args.lambda1 = trial.suggest_float('lambda1', 0, 10, step=0.05)
         args.lambda2 = trial.suggest_float('lambda2', 0, 10, step=0.05)
         args.useGCN = False #trial.suggest_categorical("useGCN", [True, False])
@@ -312,7 +316,7 @@ if __name__ == "__main__":
     if args.test:
         objective()
     else:
-        study = optuna.create_study(storage=f"sqlite:///reform/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize",  load_if_exists=True)
+        study = optuna.create_study(storage=f"sqlite:///AGD/{args.dataset}_{args.model}_{args.fix_num}_{args.proportion}.db", study_name=f"{args.dataset}_{args.model}", direction="maximize",  load_if_exists=True)
 
         study.optimize(objective, n_trials=1500)
 

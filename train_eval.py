@@ -91,7 +91,6 @@ def test_altopt(model, data, split_idx, args=None):
     return train_acc, valid_acc, test_acc
 
 def train(model, data, train_idx, optimizer, args=None):
-    # print('train')
     model.train()
     optimizer.zero_grad()
     out = model(data=data)[train_idx]
@@ -106,8 +105,7 @@ def train(model, data, train_idx, optimizer, args=None):
     elif args.loss == 'MSE':
         # convert y to one-hot format
         label = torch.zeros_like(out) 
-        label[range(y.shape[0]), y] = 1
-        # import ipdb; ipdb.set_trace()
+        label[torch.arange(y.shape[0]), y] = 1
         loss = torch.sum(torch.square(out-label))
     # print('####### training loss: ', loss)
     loss.backward()
