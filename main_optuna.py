@@ -283,6 +283,8 @@ def set_up_trial(trial: optuna.Trial, args):
         args.gnnepoch = trial.suggest_int("gnnepoch", 0, 120, step=10)
         args.weightedloss = trial.suggest_categorical("weightedloss", [True, False])
         args.temperature = trial.suggest_float("temperature", 0.01, 10, log=True)
+        args.bn = trial.suggest_categorical("bn", [True, False])
+        args.tailln = trial.suggest_categorical("tailln", [True, False])
     
     elif args.model in ['MFGNN', 'MFGNN-Hidden']:
         args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)

@@ -72,23 +72,19 @@ class GCN(torch.nn.Module):
             )
         self.convs.append(GCNConv(hidden_channels, out_channels))
         self.dropout = dropout
-        self.output = torch.nn.Sequential(torch.nn.LayerNorm(hidden_channels) if args.tailln else torch.nn.Identity())
+        self.output = torch.nn.Sequential(torch.nn.LayerNorm(out_channels) if args.tailln else torch.nn.Identity())
         if args.loss == "CE":
             self.output.append(torch.nn.LogSoftmax(dim=-1))
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
-        for bn in self.bns:
-            bn.reset_parameters()
 
     def forward(self, data, **kwargs):
         x, adj_t, = data.x, data.adj_t
         for i, conv in enumerate(self.convs[:-1]):
             x = conv(x, adj_t)
             x = self.bns[i](x)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return self.output(x)
 

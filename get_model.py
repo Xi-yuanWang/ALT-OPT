@@ -1,5 +1,4 @@
-# from emp import EMP
-from emp_both import EMP
+
 # from prop_mf import MFProp
 from prop import Propagation
 
