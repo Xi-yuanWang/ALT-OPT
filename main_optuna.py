@@ -257,11 +257,11 @@ def objective(trial=None):
     return valid_acc
 
 def set_up_trial(trial: optuna.Trial, args):
-    args.lr     = trial.suggest_float('lr', 1e-4, 1e-2, log=True)
+    args.lr     = trial.suggest_float('lr', 1e-3, 3e-2, log=True)
     args.weight_decay     = trial.suggest_float('weight_decay', 1e-6, 1e-1, log=True)
     args.dropout     = trial.suggest_float('dropout', 0, 0.95, step=0.05)
     args.loss = trial.suggest_categorical("loss", ["CE", "MSE"])
-    args.hidden_channels = trial.suggest_int("hidden_channels", 16, 64, step=16)
+    args.hidden_channels = trial.suggest_int("hidden_channels", 64, 64, step=16)
     args.num_layers = trial.suggest_int("num_layers", 1, 2)
     if args.model == 'LP':
         args.alpha = trial.suggest_uniform('alpha', 0, 1.00001)
@@ -272,15 +272,15 @@ def set_up_trial(trial: optuna.Trial, args):
 
     elif args.model in ['ElasticGNN', 'ALTOPT', 'ORTGNN', "EXACT", "AGD"]:
         args.alpha = trial.suggest_float('alpha', 0, 1.00001, step=0.05)
-        args.loop = trial.suggest_int('loop', 0, 1)
-        args.K = trial.suggest_int("K", 1, 10)
-        args.K0 = trial.suggest_int("K0", 1, 10)
-        args.lambda1 = trial.suggest_float('lambda1', 0, 2, step=0.01)
-        args.lambda2 = trial.suggest_float('lambda2', 0, 10)
-        args.useGCN = trial.suggest_categorical("useGCN", [True, False])
-        args.softmaxF = trial.suggest_categorical("softmaxF", [True, False])
+        args.loop = trial.suggest_int('loop', 1, 1)
+        args.K = trial.suggest_int("K", 1, 3)
+        args.K0 = trial.suggest_int("K0", 1, 20)
+        args.lambda1 = trial.suggest_float('lambda1', 0, 10, step=0.05)
+        args.lambda2 = trial.suggest_float('lambda2', 0, 10, step=0.05)
+        args.useGCN = False #trial.suggest_categorical("useGCN", [True, False])
+        args.softmaxF = True #trial.suggest_categorical("softmaxF", [True, False])
         args.Fwd     = trial.suggest_float('Fwd', 1e-6, 1e-1, log=True)
-        args.gnnepoch = trial.suggest_int("gnnepoch", 0, 120, step=10)
+        args.gnnepoch = trial.suggest_int("gnnepoch", 0, 60, step=10)
         args.weightedloss = trial.suggest_categorical("weightedloss", [True, False])
         args.temperature = trial.suggest_float("temperature", 0.01, 10, log=True)
         args.bn = trial.suggest_categorical("bn", [True, False])
