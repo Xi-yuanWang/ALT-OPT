@@ -16,7 +16,7 @@ from myutil import sort_trials
 def parse_args():
     parser = argparse.ArgumentParser(description='ALTOPT')
     parser.add_argument('--seed', type=int, default=12321312)
-    parser.add_argument('--test', action="store_true")
+    parser.add_argument('--test', type=str2bool, default=False)
     parser.add_argument('--log_steps', type=int, default=0)
     parser.add_argument('--dataset', type=str, default='Cora')
     parser.add_argument('--epochs', type=int, default=500)
@@ -35,8 +35,8 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=None)
 
     parser.add_argument('--prop', type=str, default='EMP') # useless
-    parser.add_argument('--bn', action="store_true") # number of propagation
-    parser.add_argument('--tailln', action="store_true") # number of propagation
+    parser.add_argument('--bn', type=str2bool, default=False) # number of propagation
+    parser.add_argument('--tailln', type=str2bool, default=False) # number of propagation
     parser.add_argument('--K0', type=int, default=None) # number of propagation
     parser.add_argument('--K', type=int, default=None) # number of propagation
     parser.add_argument('--gamma', type=float, default=None) # used in EMP prop
@@ -279,16 +279,16 @@ def set_up_trial(trial: optuna.Trial, args):
         args.loop = trial.suggest_int('loop', 1, 1)
         args.K = trial.suggest_int("K", 1, 3)
         args.K0 = trial.suggest_int("K0", 1, 30)
-        args.lambda1 = trial.suggest_float('lambda1', 0, 10, step=0.05)
-        args.lambda2 = trial.suggest_float('lambda2', 0, 10, step=0.05)
-        args.useGCN = False #trial.suggest_categorical("useGCN", [True, False])
-        args.softmaxF = True #trial.suggest_categorical("softmaxF", [True, False])
+        args.lambda1 = trial.suggest_float('lambda1', 0, 20, step=0.05)
+        args.lambda2 = trial.suggest_float('lambda2', 0, 20, step=0.05)
+        args.useGCN = trial.suggest_categorical("useGCN", [False])
+        args.softmaxF = trial.suggest_categorical("softmaxF", [True, False])
         args.Fwd     = trial.suggest_float('Fwd', 1e-6, 1e-1, log=True)
         args.gnnepoch = trial.suggest_int("gnnepoch", 0, 60, step=10)
-        args.weightedloss = trial.suggest_categorical("weightedloss", [True, False])
+        args.weightedloss = trial.suggest_categorical("weightedloss", [False])
         args.temperature = trial.suggest_float("temperature", 0.01, 10, log=True)
-        args.bn = trial.suggest_categorical("bn", [True, False])
-        args.tailln = trial.suggest_categorical("tailln", [True, False])
+        args.bn = trial.suggest_categorical("bn", [True])
+        args.tailln = trial.suggest_categorical("tailln", [True])
     
     elif args.model in ['MFGNN', 'MFGNN-Hidden']:
         args.lambda1 = trial.suggest_uniform('lambda1', 0, 1000)
