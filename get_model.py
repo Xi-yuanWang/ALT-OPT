@@ -59,7 +59,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'APPNP':
         prop = Propagation(K=args.K,
                            alpha=args.alpha,
-                           mode=args.prop,
+                           mode="None",
                            cached=True,
                            args=args)
 
@@ -74,7 +74,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'IAPPNP':
         prop = Propagation(K=args.K,
                            alpha=args.alpha,
-                           mode=args.prop,
+                           mode="None",
                            cached=True,
                            args=args)
         model = IAPPNP(in_channels=data.all_features,
@@ -96,7 +96,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'ALTOPT':
         prop =  Propagation(K=args.K, 
                     alpha=args.alpha, 
-                    mode=args.prop,
+                    mode="None",
                     cached=True,
                     args=args)
         
@@ -111,7 +111,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'AGD':
         prop =  Propagation(K=args.K, 
                     alpha=args.alpha, 
-                    mode=args.prop,
+                    mode="None",
                     cached=True,
                     args=args)
         
@@ -125,7 +125,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'EXACT':
         prop =  Propagation(K=args.K, 
                     alpha=args.alpha, 
-                    mode=args.prop,
+                    mode="None",
                     cached=True,
                     args=args)
         
@@ -139,7 +139,7 @@ def get_model(args, dataset, all_features):
     elif args.model == 'CS':
         prop = Propagation(K=args.K,
                            alpha=args.alpha,
-                           mode=args.prop,
+                           mode="None",
                            cached=True,
                            args=args)
         model = IAPPNP(in_channels=data.all_features,

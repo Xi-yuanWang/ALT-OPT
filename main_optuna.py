@@ -44,10 +44,11 @@ def parse_args():
 
     parser.add_argument('--softmaxF', type=str2bool, default=True) # whether to do softmax for F
     parser.add_argument('--useGCN', type=str2bool, default=True) # whether to use GCN instead of MLP
-    parser.add_argument("--weightedloss", type=str2bool, default=True) #whether to use loss weighted by node F
+    parser.add_argument("--weightedloss", type=str2bool, default=True) # whether to use loss weighted by node F
+    parser.add_argument("--temperature", type=float, default=0.2) # temperature for weight
 
     parser.add_argument("--onlyy", type=str2bool, default=False) # used in exact method
-    parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument("--usecg", type=str2bool, default=True) # used in exact method
     
     parser.add_argument('--loss', type=str, default=None, choices=["CE", "MSE"]) # loss function
     parser.add_argument('--loop', type=int, default=None, help='Iteration number of MLP each epoch')
@@ -101,7 +102,7 @@ def objective(trial=None):
 
     ## data split
     for split in range(random_split_num):
-        dataset, data, split_idx = get_dataset(args, split, defense=args.defense)
+        dataset, data, split_idx = get_dataset(args, split)
         data.psuedo_indices = None
         all_features = data.num_features
         args.num_class = data.y.max()+1
