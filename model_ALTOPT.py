@@ -41,7 +41,7 @@ class APPNP(torch.nn.Module):
         x = self.prop(x, adj_t, data=data)
         return F.log_softmax(x, dim=1)
     
-    
+
 class ALTOPT(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, dropout, prop, args, **kwargs):
         super(ALTOPT, self).__init__()
@@ -81,13 +81,6 @@ class ALTOPT(torch.nn.Module):
         self.gcn = GCN(in_channels, hidden_channels, out_channels, dropout, 2, args)
 
     def reset_parameters(self):
-        '''
-        for lin in self.lins:
-            lin.reset_parameters()
-        for bn in self.bns:
-            bn.reset_parameters()
-        self.prop.reset_parameters()
-        '''
         self.gcn.reset_parameters()
         self.mlp = None
         self.FF = None

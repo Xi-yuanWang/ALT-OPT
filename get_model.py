@@ -1,5 +1,7 @@
+'''
+parse args to build model.
+'''
 
-# from prop_mf import MFProp
 from prop import Propagation
 
 def get_model(args, dataset, all_features):

@@ -3,7 +3,6 @@ import random
 import argparse
 import time
 from dataset import get_dataset
-
 from util import Logger, str2bool
 from get_model import get_model
 from train_eval import train, test
