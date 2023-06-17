@@ -22,16 +22,11 @@ To reproduce AGD with $K\le 3$.
 ```
 mkdir AGDtest
 mkdir AGDtest/main
-mkdir AGDtest/agdk10
+mkdir AGDtest/exact_cg
 mkdir AGDtest/exact
+mkdir AGDtest/altopt
 chmod +777 testall.sh
 ./testall.sh
-```
-
-To reproduce AGD with K=10,
-```
-chmod +777 testall_K=10.sh
-./testall_K=10.sh
 ```
 
 To reproduce EXACT
@@ -39,3 +34,15 @@ To reproduce EXACT
 chmod +777 testall_exact.sh
 ./testall_exact.sh
 ```
+
+To reproduce EXACT-cg
+```
+chmod +777 testall_exact_cg.sh
+./testall_exact_cg.sh
+```
+
+
+To reproduce ALTOPT
+```
+chmod +777 testall_altopt.sh
+./testall_altopt.sh
