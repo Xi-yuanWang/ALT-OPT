@@ -4,72 +4,61 @@ import argparse
 import time
 from dataset import get_dataset
 
-from util import Logger, str2bool, spectral
+from util import Logger, str2bool
 from get_model import get_model
 from train_eval import train, test
 from train_eval import train_altopt, test_altopt, train_cs, test_cs, test1, train_appnp, test_appnp
 from model import CorrectAndSmooth
 
 import optuna
-from myutil import sort_trials
 
 def parse_args():
     parser = argparse.ArgumentParser(description='ALTOPT')
     parser.add_argument('--seed', type=int, default=12321312)
-    parser.add_argument('--test', type=str2bool, default=False)
-    parser.add_argument('--log_steps', type=int, default=0)
+    parser.add_argument('--test', type=str2bool, default=False) # to do test or hyperparameter tuning
+    parser.add_argument('--log_steps', type=int, default=0) # step to print log
     parser.add_argument('--dataset', type=str, default='Cora')
     parser.add_argument('--epochs', type=int, default=500)
-    parser.add_argument('--gnnepoch', type=int, default=100)
+    parser.add_argument('--gnnepoch', type=int, default=100) # pretraining epoch
     parser.add_argument('--runs', type=int, default=3)
     parser.add_argument('--normalize_features', type=str2bool, default=True, help="whether to normalize node feature")
     parser.add_argument('--random_splits', type=int, default=0, help='default use fix split')
 
     parser.add_argument('--model', type=str, default='ALTOPT')
-    parser.add_argument('--num_layers', type=int, default=2)
+    parser.add_argument('--num_layers', type=int, default=2) # number of mlp layers
     parser.add_argument('--hidden_channels', type=int, default=64)
     parser.add_argument('--dropout', type=float, default=None)
-    parser.add_argument('--weight_decay', type=float, default=None)
-    parser.add_argument('--Fwd', type=float, default=None)
-    parser.add_argument('--earlystop', type=int, default=10)
+    parser.add_argument('--weight_decay', type=float, default=None) # weight decay for model parameters
+    parser.add_argument('--Fwd', type=float, default=None) # Weight decay for F tensor
+    parser.add_argument('--earlystop', type=int, default=10) 
     parser.add_argument('--lr', type=float, default=None)
 
-    parser.add_argument('--prop', type=str, default='EMP') # useless
-    parser.add_argument('--bn', type=str2bool, default=False) # number of propagation
+    parser.add_argument('--bn', type=str2bool, default=False) # whether to use batchnorm
     parser.add_argument('--tailln', type=str2bool, default=False) # number of propagation
-    parser.add_argument('--K0', type=int, default=None) # number of propagation
+    parser.add_argument('--K0', type=int, default=None) # number of propagation initially
     parser.add_argument('--K', type=int, default=None) # number of propagation
-    parser.add_argument('--gamma', type=float, default=None) # used in EMP prop
-    parser.add_argument('--lambda1', type=float, default=None)
-    parser.add_argument('--lambda2', type=float, default=None)
-    parser.add_argument('--L21', type=str2bool, default=True) # useless
-    parser.add_argument('--alpha', type=float, default=None) # PPR alpha
+    parser.add_argument('--lambda1', type=float, default=None) # weight of ||F-MLP(X)||^2
+    parser.add_argument('--lambda2', type=float, default=None) # weight of ||Y_T-F_T||^2
+    parser.add_argument('--alpha', type=float, default=None) # GNN hyperparameter
     
-    parser.add_argument('--defense', type=str, default=None) # no use
-    parser.add_argument('--ptb_rate', type=float, default=0) # no use
-    parser.add_argument('--sort_key', type=str, default='K')
-    parser.add_argument('--debug', type=str2bool, default=False) # no use
+    parser.add_argument('--sort_key', type=str, default='K') # used in optuna
 
-    parser.add_argument('--softmaxF', type=str2bool, default=True)
-    parser.add_argument('--useGCN', type=str2bool, default=True)
-    parser.add_argument("--onlyy", type=str2bool, default=False)
-    parser.add_argument("--usecg", type=str2bool, default=True)
-    parser.add_argument("--weightedloss", type=str2bool, default=True)
+    parser.add_argument('--softmaxF', type=str2bool, default=True) # whether to do softmax for F
+    parser.add_argument('--useGCN', type=str2bool, default=True) # whether to use GCN instead of MLP
+    parser.add_argument("--weightedloss", type=str2bool, default=True) #whether to use loss weighted by node F
 
+    parser.add_argument("--onlyy", type=str2bool, default=False) # used in exact method
     parser.add_argument("--temperature", type=float, default=0.2)
     
-    parser.add_argument('--loss', type=str, default=None, choices=["CE", "MSE"])
-    parser.add_argument('--LP', type=str2bool, default=False, help='Label propagation') #only in EMP
+    parser.add_argument('--loss', type=str, default=None, choices=["CE", "MSE"]) # loss function
     parser.add_argument('--loop', type=int, default=None, help='Iteration number of MLP each epoch')
     parser.add_argument('--fix_num', type=int, default=0, help='number of train sample each class')
     parser.add_argument('--proportion', type=float, default=0, help='proportion of train sample each class')
-    parser.add_argument('--has_weight', type=str2bool, default=True) # no use
-    parser.add_argument('--noise', type=float, default=0, help='label noise ratio')
+    # used in other baseline model
     parser.add_argument('--num_correct_layer', type=int, default=None)
     parser.add_argument('--correct_alpha', type=float, default=None)
     parser.add_argument('--num_smooth_layer', type=int, default=None)
     parser.add_argument('--smooth_alpha', type=float, default=None)
-    parser.add_argument('--spectral', type=str2bool, default=False) # spectral embedding
     parser.add_argument('--pro_alpha', type=float, default=None)
     parser.add_argument('--const_split', type=str2bool, default=False)
 
@@ -77,9 +66,16 @@ def parse_args():
     args.ogb = True if 'ogb' in args.dataset.lower() else False
     if args.K0 is None:
         args.K0 = args.K
+    if args.ogb:
+        args.num_layers = 3
+        args.weight_decay = 0
+        args.hidden_channels = 256
     return args
 
 def objective(trial=None):
+    '''
+    training and test routine
+    '''
     args = parse_args()
     if trial is not None:
         args = set_up_trial(trial, args)
@@ -108,37 +104,16 @@ def objective(trial=None):
     for split in range(random_split_num):
         dataset, data, split_idx = get_dataset(args, split, defense=args.defense)
         data.psuedo_indices = None
-        if args.spectral:
-            data.x = torch.cat([data.x, spectral(data)], dim=-1)
-            all_features = data.num_features
-        else:
-            all_features = data.num_features
-        # print('feature', data.num_features)
+        all_features = data.num_features
         args.num_class = data.y.max()+1
         train_idx = split_idx['train']
-        print("Data:", data)
-        ## add noise
-        mask = data.train_mask
-        num_train = mask.sum()
-        print('num_train', num_train)
-        num_noise = int(args.noise * num_train)
-        print('num_noise', num_noise)
-        y = data.y.clone()
-        if num_noise != 0:
-            indices = torch.randperm(num_train)[:num_noise]
-            rand_idx = train_idx[indices]
-            data.y[rand_idx] = torch.randint(args.num_class, (num_noise,))
-        print('noise:', (data.y != y).sum())
-
         data = data.to(device)
         if not isinstance(data.adj_t, torch.Tensor):
             data.adj_t = data.adj_t.to_symmetric()
 
-        if args.ogb:
-            args.num_layers = 3
-            args.weight_decay = 0
-            args.hidden_channels = 256
         start = time.time()
+
+        # build model
         model = get_model(args, dataset, all_features)
         print(model)
         if args.model == 'LP':
@@ -147,9 +122,9 @@ def objective(trial=None):
             continue
 
         model.reset_parameters()
+        # preprocess node features
         if args.model in ['IAPPNP', 'ORTGNN', 'ALTOPT', "AGD", "EXACT", 'APPNP', 'MLP', 'CS']:
             model.propagate(data, args.K0)
-            print('propagate done')
 
         for run in range(args.runs):
             data.pseudo_mask = data.train_mask.clone()
@@ -159,18 +134,18 @@ def objective(trial=None):
             data.f = None
             runs_overall = split * args.runs + run
             model.reset_parameters()
+
             optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
             t_start = time.perf_counter()
             best_acc = 0
             y_soft = None
             nic_step = 0
             args.current_epoch = 0
+            
+            # training process
             if args.model in ['ALTOPT', "EXACT", "AGD"]:
                 for i in range(args.gnnepoch):
-                    loss = train(model, data, train_idx, optimizer, args=args) #
-                # train_altopt(model, data, train_idx, optimizer, args=args) # 
-                # result = test(model, data, split_idx, args=args)
-                # print('vanilla GNN test_result', result)
+                    loss = train(model, data, train_idx, optimizer, args=args)
                 args.current_epoch = 1
             for epoch in range(1, 1 + args.epochs):
                 args.current_epoch = epoch
@@ -216,13 +191,6 @@ def objective(trial=None):
                     break
             if args.model == 'CS':
                 print('best_acc', best_acc)
-                # adj_t = data.adj_t.to(device)
-                # deg = adj_t.sum(dim=1).to(torch.float)
-                # deg_inv_sqrt = deg.pow_(-0.5)
-                # deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-                # DAD = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
-                # DA = deg_inv_sqrt.view(-1, 1) * deg_inv_sqrt.view(-1, 1) * adj_t
-                # torch.save(y_soft, 'y_soft2.th')
 
                 if y_soft is None:
                     y_soft = torch.load('y_soft2.th')
@@ -326,19 +294,6 @@ if __name__ == "__main__":
         print("  Number of finished trials: ", len(study.trials))
         print("  Number of pruned trials: ", len(pruned_trials))
         print("  Number of complete trials: ", len(complete_trials))
-
-        sorted_trial = sort_trials(study.trials, key=args.sort_key)
-
-        for trial in sorted_trial:
-            print("trial.params: ", trial.params, 
-                "  trial.value: ", '{0:.5g}'.format(trial.value),
-                "  ", trial.user_attrs)
-
-        test_acc = []
-        for trial in sorted_trial:
-            test_acc.append(trial.user_attrs['test'])
-        print('test_acc')
-        print(test_acc)
 
         print("Best params:", study.best_params)
         print("Best trial Value: ", study.best_trial.value)

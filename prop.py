@@ -154,10 +154,6 @@ class Propagation(MessagePassing):
         if getattr(data, "Leftmat", None) is None:
             N = data.num_nodes
             rowptr, col, val = edge_index.csr()
-            if val is None:
-                raise NotImplementedError
-                # should be gcn weight
-                val = torch.ones_like(col, dtype=torch.float)
             
             rowptr, col, val = cp.asarray(rowptr), cp.asarray(col), cp.asarray(val)
             if self.args.loss == 'CE':
@@ -241,13 +237,6 @@ class Propagation(MessagePassing):
         for k in range(K):
             Ax = self.propagate(edge_index, x=x, edge_weight=None, size=None)
             x = alpha * hh + (1 - alpha) * Ax
-            # print('now')
-            # x = self.propagate(edge_index, x=x, edge_weight=None, size=None)
-            # x = x * (1 - alpha)
-            # x += alpha * hh
-            # x = F.dropout(x, p=self.dropout, training=self.training)
-            # x = F.dropout(x, p=self.dropout)
-        # import ipdb; ipdb.set_trace()
         return x
 
     def label_forward(self, x, edge_index, K, alpha, post_step, edge_weight):
@@ -263,24 +252,13 @@ class Propagation(MessagePassing):
     def ort_forward(self, x, edge_index, K, alpha, data):
         lambda1 = self.args.lambda1
         lambda2 = self.args.lambda2
-        # print(lambda1, lambda2, (1+lambda1-2*lambda2))
-        # print(lambda1)
-        # import ipdb; ipdb.set_trace()
         out = x
-        # out = out / out.norm(dim=0, keepdim=True).clamp(min=1e-7)
-        # print(out)
         res = 1/(1+lambda1-2*lambda2) * out
         for k in range(K):
             AF = self.propagate(edge_index, x=out, edge_weight=None, size=None)
             FTF = torch.mm(out.T, out)
             FFTF = torch.mm(out, FTF)
             out = lambda1 / (1+lambda1-2*lambda2) * AF + res - 2*lambda2/(1+lambda1-2*lambda2)*FFTF
-            # print(FTF)
-            # out = out / out.norm(dim=0, keepdim=True).clamp(min=1e-7)
-            # print(FTF)
-        # out = out / out.norm(dim=0, keepdim=True).clamp(min=1e-7)
-        ## 5, 0.01 is good if without norm
-        # print(torch.mm(out.T, out))
         return out
 
     def message(self, x_j: Tensor, edge_weight: Tensor) -> Tensor:

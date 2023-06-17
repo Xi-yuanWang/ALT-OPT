@@ -5,8 +5,6 @@ from torch_geometric.nn import GCNConv
 from torch_geometric.nn import SAGEConv
 from torch_geometric.nn import GATConv
 from torch_geometric.nn import SGConv
-from torch_geometric.nn import ChebConv
-from torch_geometric.nn.models import LabelPropagation
 from prop import Propagation
 import math
 
@@ -39,13 +37,9 @@ class MLP(torch.nn.Module):
 
     def forward(self, data, **kwargs):
         x = data.x
-        # x = self.x
-        # x = (x - x.mean(0)) / x.std(0)
         x = F.dropout(x, p=self.dropout, training=self.training)
         for i, lin in enumerate(self.lins[:-1]):
             x = lin(x)
-            # x = F.relu(x)
-            # x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)
@@ -88,24 +82,6 @@ class GCN(torch.nn.Module):
         x = self.convs[-1](x, adj_t)
         return self.output(x)
 
-
-# class ChebNet(torch.nn.Module):
-#     def __init__(self, in_channels, hidden_channels, out_channels, dropout, **kwargs):
-#         super(ChebNet, self).__init__()
-#         self.conv1 = ChebConv(in_channels, hidden_channels, K=2)
-#         self.conv2 = ChebConv(hidden_channels, out_channels, K=2)
-#         self.dropout = dropout
-
-#     def reset_parameters(self):
-#         self.conv1.reset_parameters()
-#         self.conv2.reset_parameters()
-
-#     def forward(self, data, **kwargs):
-#         x, adj_t, = data.x, data.adj_t
-#         x = F.relu(self.conv1(x, adj_t))
-#         x = F.dropout(x, p=self.dropout, training=self.training)
-#         x = self.conv2(x, adj_t)
-#         return F.log_softmax(x, dim=1)
 
 
 class SAGE(torch.nn.Module):
@@ -315,19 +291,11 @@ class APPNP_Hidden(torch.nn.Module):
 
     def forward(self, data):
         x, adj_t, = data.x, data.adj_t
-        # print(f'input: x: {x}')
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = F.relu(self.lin1(x))
-        # print(f'lin1 weight: {self.lin1.weight}')
-        # import ipdb; ipdb.set_trace()
-        # print(f'lin1: x: {x}')
-        # x.requires_grad_(); x.register_hook(lambda grad: print(f'backward before prop x: {grad}'))
         x = self.prop(x, adj_t, data=data)
-        # x.requires_grad_(); x.register_hook(lambda grad: print(f'backward after prop x: {grad}, min: {grad.min()}, max: {grad.max()}'))
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lin2(x)
-        # x.requires_grad_(); x.register_hook(lambda grad: print(f'backward output x: {grad}, min: {grad.min()}, max: {grad.max()}'))
-        # print(f'lin2: x: {x}')
         return F.log_softmax(x, dim=1)
 
 ## TODO: model: concatnate node and graph features
@@ -358,9 +326,6 @@ class APPNP_Concat(torch.nn.Module):
 
     def forward(self, data):
         x, adj_t, = data.x, data.adj_t
-        # import ipdb; ipdb.set_trace()
-        # x = torch.cat([x, self._cached_embedding], dim=1)
-        # x = self._cached_embedding
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.dropout, training=self.training)
@@ -393,7 +358,6 @@ class CSMLP(torch.nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         for i, lin in enumerate(self.lins[:-1]):
             x = lin(x)
-            # x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)
@@ -438,7 +402,6 @@ class CorrectAndSmooth(torch.nn.Module):
         label = self.init_label(data)
         y_soft[mask] = label[mask]
         r = self.prop2(y_soft, adj_t, post_step=lambda x: x.clamp(0, 1),edge_weight=edge_weight)
-        # r = self.prop2(y_soft, adj_t, post_step=lambda x: x, edge_weight=edge_weight)
         return r
 
 
@@ -473,19 +436,13 @@ class ORTGNN(torch.nn.Module):
 
     def forward(self, data):
         x, adj_t, = data.x, data.adj_t
-        # x = self.x
-        # print(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         for i, lin in enumerate(self.lins[:-1]):
             x = lin(x)
-            # x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.lins[-1](x)
         x = self.prop(x, adj_t, data=data)
-        if torch.isnan(x).any():
-            import ipdb
-            ipdb.set_trace()
         return F.log_softmax(x, dim=1)
 
 

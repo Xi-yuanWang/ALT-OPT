@@ -40,57 +40,8 @@ class APPNP(torch.nn.Module):
         x = self.lin2(x)
         x = self.prop(x, adj_t, data=data)
         return F.log_softmax(x, dim=1)
-
-
-# class ALTOPT(torch.nn.Module):
-#     def __init__(self, in_channels, hidden_channels, out_channels, dropout, prop, args, **kwargs):
-#         super(ALTOPT, self).__init__()
-#         self.lin1 = Linear(in_channels, hidden_channels)
-#         self.lin2 = Linear(hidden_channels, out_channels)
-#         self.dropout = dropout
-#         self.prop = prop
-#         self.args = args
-#         self.add_self_loops = True  # maybe false @Zhou 2003
-#         self.FF = None  ## pseudo label
-#         self.mlp = None
-#         self.reset_parameters()
-#
-#     def reset_parameters(self):
-#         self.lin1.reset_parameters()
-#         self.lin2.reset_parameters()
-#         self.prop.reset_parameters()
-#         self.mlp = None
-#         self.FF = None
-#
-#     def propagate_update(self, data, K):
-#         # return
-#
-#         # pass
-#         if self.FF is None:
-#             self.FF = self.prop.init_label(data)
-#         # else:
-#         ## maybe recompute mlp output here using the test mode
-#         if self.mlp is None:
-#             # print('no mlp')
-#             zero_mlp = torch.zeros_like(self.FF)
-#             self.FF = self.prop(x=zero_mlp, edge_index=data.adj_t, data=data, FF=self.FF, mode='ALTOPT')
-#         else:
-#             # print('with mlp')
-#             self.FF = self.prop(x=self.mlp, edge_index=data.adj_t, data=data, FF=self.FF, mode='ALTOPT')
-#
-#     def forward(self, data):
-#         x, adj_t = data.x, data.adj_t
-#         x = F.dropout(x, p=self.dropout, training=self.training)
-#         x = F.relu(self.lin1(x))
-#         x = F.dropout(x, p=self.dropout, training=self.training)
-#         x = self.lin2(x)
-#         x = F.softmax(x, dim=1)
-#         ## note that the difference between training and test: dropout or not
-#         if not self.training:
-#             ## there is no dropout in test
-#             self.mlp = x.clone().detach()
-#         return x
-
+    
+    
 class ALTOPT(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, dropout, prop, args, **kwargs):
         super(ALTOPT, self).__init__()
